@@ -25,7 +25,7 @@ void TrieNode::insert(std::string& word, char * from) {
 } 
 
 // Check against the string at (of the form "l?n??ell??") with un-called letters given by "can"
-void TrieNode::scan(std::vector<std::string> &ans, char * at, uint32_t can) {
+void TrieNode::scan(std::vector<std::string> &ans, char * at, uint32_t can) const {
     switch (*at) {
         case '\0':
         {
@@ -36,11 +36,11 @@ void TrieNode::scan(std::vector<std::string> &ans, char * at, uint32_t can) {
         case '?':
         {
             // can be anything in "can" - check all existing children
-            std::shared_ptr<TrieNode>* p = children;
+            int i = 0;
             uint32_t m = 2;
             while (m < (1 << 27)) {
-                if (can & m & active) (*p)->scan(ans, at + 1, can);
-                m *= 2; ++p;
+                if (can & m & active) children[i]->scan(ans, at + 1, can);
+                m *= 2; ++i;
             }
         }
         break;
@@ -64,7 +64,7 @@ Trie::Trie(std::string file) {
     reader.close();
 }
 
-void Trie::scan(std::vector<std::string>& ans, std::string at, std::string called) {
+void Trie::scan(std::vector<std::string>& ans, std::string at, std::string called) const {
     ans.clear();
     for (char c : at) {
         assert(IS_LCASE(c) || c == '?');
@@ -75,4 +75,17 @@ void Trie::scan(std::vector<std::string>& ans, std::string at, std::string calle
         m &= ~(1 << (c - 'a' + 1));
     }
     root.scan(ans, &at[0], m);
+}
+
+std::string Trie::strScan(std::string at, std::string called) const {
+    std::vector<std::string> ans;
+    scan(ans, at, called);
+    if (ans.size() == 0) return "[]";
+    std::string r = "[\"" + ans.front() + "\"";
+    auto p = next(ans.begin());
+    while (p != ans.end()) {
+        r += ",\"" + *p + "\"";
+        ++p;
+    }
+    return r + "]";
 }

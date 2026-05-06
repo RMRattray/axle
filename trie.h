@@ -7,7 +7,7 @@ class TrieNode {
     public:
     TrieNode();
     void insert(std::string& word, char * from);
-    void scan(std::vector<std::string> &ans, char * at, uint32_t can);
+    void scan(std::vector<std::string> &ans, char * at, uint32_t can) const;
 
     private:
     uint32_t active;
@@ -18,7 +18,8 @@ class TrieNode {
 class Trie {
     public:
     Trie(std::string file);
-    void scan(std::vector<std::string> &ans, std::string at, std::string can);
+    void scan(std::vector<std::string> &ans, std::string at, std::string called) const;
+    std::string strScan(std::string at, std::string called) const;
 
     private:
     TrieNode root;
