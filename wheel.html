@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Wheel of Fortune solver</title>
+        <style>
+            :root {
+                --bg: #081f38;
+                --panel: #10345d;
+                --open-slot: #f6f7f8;
+                --closed-slot: #0ca84a;
+                --slot-border: #153555;
+                --text: #e7eff9;
+            }
+
+            * {
+                box-sizing: border-box;
+            }
+
+            body {
+                margin: 0;
+                padding: 24px;
+                min-height: 100vh;
+                background: radial-gradient(circle at top, #1f4f82, var(--bg));
+                color: var(--text);
+                font-family: Arial, sans-serif;
+            }
+
+            .board {
+                width: fit-content;
+                margin: 0 auto 20px;
+                padding: 12px;
+                border-radius: 18px;
+                background: linear-gradient(180deg, #204c7f, #0f2f51);
+                border: 3px solid #3870aa;
+                box-shadow: 0 14px 28px rgba(0, 0, 0, 0.35);
+                user-select: none;
+            }
+
+            .board-row {
+                display: flex;
+                gap: 5px;
+                margin: 4px 0;
+            }
+
+            .slot,
+            .empty {
+                width: 44px;
+                height: 54px;
+                border-radius: 6px;
+            }
+
+            .empty {
+                visibility: hidden;
+            }
+
+            .slot {
+                background: var(--closed-slot);
+                border: 2px solid var(--slot-border);
+                color: #10284f;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 34px;
+                font-weight: 700;
+                text-transform: uppercase;
+                cursor: pointer;
+                transition: transform 0.08s ease, background-color 0.12s ease;
+            }
+
+            .slot.open {
+                background: var(--open-slot);
+            }
+
+            .slot:hover {
+                transform: translateY(-1px);
+            }
+
+            .button-row {
+                max-width: 900px;
+                margin: 0 auto;
+                display: grid;
+                gap: 10px;
+                justify-items: center;
+            }
+
+            #instructions {
+                margin: 0;
+                text-align: center;
+            }
+
+            #only-button {
+                min-width: 140px;
+                font-size: 18px;
+                font-weight: 700;
+                padding: 10px 18px;
+                border: none;
+                border-radius: 999px;
+                color: white;
+                background: #ff9700;
+                cursor: pointer;
+            }
+
+            .letter {
+                min-height: 62px;
+                font-size: 56px;
+                font-weight: 800;
+                letter-spacing: 2px;
+            }
+
+            .called {
+                min-height: 20px;
+                font-size: 14px;
+                letter-spacing: 1px;
+                opacity: 0.9;
+            }
+
+            .answers {
+                margin: 18px auto 0;
+                max-width: 95vw;
+                display: flex;
+                gap: 10px;
+                align-items: flex-start;
+                overflow-x: auto;
+                padding-bottom: 10px;
+            }
+
+            .answer-column {
+                max-height: 320px;
+                overflow-y: auto;
+                background: rgba(6, 26, 47, 0.86);
+                border: 2px solid #2a5f95;
+                border-radius: 8px;
+                padding: 8px;
+                flex: 1;
+            }
+
+            .answer-column h4 {
+                margin: 0 0 6px;
+                font-size: 14px;
+                color: #9fc7f5;
+            }
+
+            .answer-column div {
+                font-size: 14px;
+                line-height: 1.35;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="board">
+            <div class="board-row">
+                <div class="empty"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="empty"></div>
+            </div>
+            <div class="board-row">
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+            </div>
+            <div class="board-row">
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+            </div>
+            <div class="board-row">
+                <div class="empty"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="empty"></div>
+            </div>
+        </div>
+        <div class="button-row">
+            <p id="instructions">Click and drag through slots to toggle white (open) and green (closed), then click DONE.</p>
+            <button id="only-button">DONE</button>
+            <div class="letter"></div>
+            <div class="called"></div>
+        </div>
+        <div class="answers"></div>
+        <script>
+            const button = document.getElementById("only-button");
+            const instructions = document.getElementById("instructions");
+            const board = document.querySelector(".board");
+            const slots = Array.from(document.querySelectorAll(".slot"));
+            const letterDiv = document.querySelector(".letter");
+            const calledDiv = document.querySelector(".called");
+            const answersDiv = document.querySelector(".answers");
+
+            let phase = "setup"; // setup -> locked -> solved
+            let dragState = null;
+            let dragTouched = new Set();
+            let suppressNextClick = false;
+            let currentLetter = "";
+            let calledLetters = "";
+
+            function setSlotOpen(slot, open) {
+                slot.classList.toggle("open", open);
+                if (!open) {
+                    slot.textContent = "";
+                }
+            }
+
+            function toggleSlot(slot) {
+                const open = !slot.classList.contains("open");
+                setSlotOpen(slot, open);
+            }
+
+            function setInstructionsForLocked() {
+                instructions.textContent =
+                    "Board is locked. Type letter keys to set the active letter and add to called letters. Click open slots to place the active letter. Click GO or press Enter to solve.";
+            }
+
+            function setInstructionsForSolved() {
+                instructions.textContent =
+                    "Press letter keys and Enter to run another solve with new called letters. Click START OVER to reset everything.";
+            }
+
+            function lockBoard() {
+                phase = "locked";
+                button.textContent = "GO";
+                setInstructionsForLocked();
+            }
+
+            function resetAll() {
+                phase = "setup";
+                dragState = null;
+                dragTouched = new Set();
+                currentLetter = "";
+                calledLetters = "";
+                slots.forEach((slot) => {
+                    slot.classList.remove("open");
+                    slot.textContent = "";
+                });
+                letterDiv.textContent = "";
+                calledDiv.textContent = "";
+                answersDiv.innerHTML = "";
+                button.textContent = "DONE";
+                instructions.textContent =
+                    "Click and drag through slots to toggle white (open) and green (closed), then click DONE.";
+            }
+
+            function getBoardRowsText() {
+                const rowTexts = Array.from(document.querySelectorAll(".board-row")).map((row) => {
+                    return Array.from(row.children)
+                        .map((cell) => {
+                            if (!cell.classList.contains("slot")) return " ";
+                            if (!cell.classList.contains("open")) return " ";
+                            const value = (cell.textContent || "").trim().toLowerCase();
+                            return value ? value : "?";
+                        })
+                        .join("");
+                });
+                return rowTexts;
+            }
+
+            function extractWords(rows) {
+                const allText = rows.join(" ");
+                const words = allText.match(/[a-z?]+/g) || [];
+                return words;
+            }
+
+            function getPossList(payload) {
+                if (!payload || typeof payload !== "object") return [];
+                if (Array.isArray(payload.poss)) return payload.poss;
+                if (Array.isArray(payload.words)) return payload.words;
+                if (Array.isArray(payload.results)) return payload.results;
+                return [];
+            }
+
+            async function solveBoard(triggeredByClick) {
+                const rows = getBoardRowsText();
+                const words = extractWords(rows);
+                answersDiv.innerHTML = "";
+
+                if (!words.length) {
+                    const emptyColumn = document.createElement("div");
+                    emptyColumn.className = "answer-column";
+                    emptyColumn.innerHTML = "<h4>No words found</h4><div>Open some slots first.</div>";
+                    answersDiv.appendChild(emptyColumn);
+                    return;
+                }
+
+                for (const fmt of words) {
+                    const col = document.createElement("div");
+                    col.className = "answer-column";
+                    col.innerHTML = `<h4>${fmt}</h4><div>Loading...</div>`;
+                    answersDiv.appendChild(col);
+
+                    try {
+                        const response = await fetch("http://localhost:10808/wheel/", {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json"
+                            },
+                            body: JSON.stringify({
+                                fmt,
+                                cld: calledLetters.toLowerCase()
+                            })
+                        });
+
+                        if (!response.ok) {
+                            throw new Error(`HTTP ${response.status}`);
+                        }
+
+                        const payload = await response.json();
+                        const poss = getPossList(payload);
+                        if (!poss.length) {
+                            col.innerHTML = `<h4>${fmt}</h4><div>(no poss results)</div>`;
+                            continue;
+                        }
+                        col.innerHTML = `<h4>${fmt}</h4>`;
+                        poss.forEach((item) => {
+                            const row = document.createElement("div");
+                            row.textContent = typeof item === "string" ? item : JSON.stringify(item);
+                            col.appendChild(row);
+                        });
+                    } catch (error) {
+                        col.innerHTML = `<h4>${fmt}</h4><div>Error: ${error.message}</div>`;
+                    }
+                }
+
+                if (triggeredByClick && button.textContent === "GO") {
+                    phase = "solved";
+                    button.textContent = "START OVER";
+                    setInstructionsForSolved();
+                }
+            }
+
+            board.addEventListener("mousedown", (event) => {
+                const slot = event.target.closest(".slot");
+                if (!slot || phase !== "setup") return;
+                event.preventDefault();
+                dragState = !slot.classList.contains("open");
+                dragTouched = new Set([slot]);
+                setSlotOpen(slot, dragState);
+                suppressNextClick = true;
+            });
+
+            board.addEventListener("mouseover", (event) => {
+                if (dragState === null || phase !== "setup") return;
+                const slot = event.target.closest(".slot");
+                if (!slot || dragTouched.has(slot)) return;
+                dragTouched.add(slot);
+                setSlotOpen(slot, dragState);
+            });
+
+            document.addEventListener("mouseup", () => {
+                dragState = null;
+                dragTouched = new Set();
+            });
+
+            board.addEventListener("click", (event) => {
+                const slot = event.target.closest(".slot");
+                if (!slot) return;
+
+                if (phase === "setup" && dragState === null) {
+                    if (suppressNextClick) {
+                        suppressNextClick = false;
+                        return;
+                    }
+                    toggleSlot(slot);
+                    return;
+                }
+
+                if ((phase === "locked" || phase === "solved") && slot.classList.contains("open") && currentLetter) {
+                    slot.textContent = currentLetter;
+                }
+            });
+
+            button.addEventListener("click", async () => {
+                if (phase === "setup") {
+                    lockBoard();
+                } else if (button.textContent === "GO") {
+                    await solveBoard(true);
+                } else {
+                    resetAll();
+                }
+            });
+
+            document.addEventListener("keydown", async (event) => {
+                if (event.key === "Enter") {
+                    if (phase === "setup") {
+                        lockBoard();
+                    } else if (phase === "locked" || phase === "solved") {
+                        await solveBoard(false);
+                    }
+                    return;
+                }
+
+                if (phase !== "locked" && phase !== "solved") return;
+                if (!/^[a-zA-Z]$/.test(event.key)) return;
+
+                currentLetter = event.key.toUpperCase();
+                letterDiv.textContent = currentLetter;
+                calledLetters += event.key.toLowerCase();
+                calledDiv.textContent = calledLetters.toUpperCase();
+            });
+        </script>
+    </body>
+</html>
