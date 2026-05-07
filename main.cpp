@@ -33,7 +33,7 @@ int main()
         std::string cld = x["cld"].s();
 
         for (char c : fmt) {
-            if ((c < 'a' || c > 'z') && c != '?') {
+            if ((c < 'a' || c > 'z') && c != '_' && c != '\'') {
                 return crow::response{400};
             }
         }

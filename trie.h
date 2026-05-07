@@ -11,7 +11,7 @@ class TrieNode {
 
     private:
     uint32_t active;
-    std::shared_ptr<TrieNode> children[26];
+    std::shared_ptr<TrieNode> children[27];
     std::string means;
 };
 

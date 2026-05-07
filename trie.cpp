@@ -3,7 +3,7 @@
 #include <cassert>
 #include <fstream>
 
-#define IS_LCASE(x) ((x >= 'a') && (x <= 'z'))
+#define IS_LCASE(x) ((x >= 'a') && (x <= ('z'+1)))
 
 TrieNode::TrieNode() {
     active = 0;
@@ -24,7 +24,7 @@ void TrieNode::insert(std::string& word, char * from) {
     }
 } 
 
-// Check against the string at (of the form "l?n??ell??") with un-called letters given by "can"
+// Check against the string at (of the form "l_n__ell__") with un-called letters given by "can"
 void TrieNode::scan(std::vector<std::string> &ans, char * at, uint32_t can, int max) const {
     if (ans.size() >= max) return;
     switch (*at) {
@@ -34,7 +34,7 @@ void TrieNode::scan(std::vector<std::string> &ans, char * at, uint32_t can, int 
             if (active & 1) ans.push_back(means);
         }
         break;
-        case '?':
+        case '_':
         {
             // can be anything in "can" - check all existing children
             int i = 0;
@@ -57,7 +57,8 @@ Trie::Trie(std::string file) {
     std::string word;
     std::ifstream reader(file);
     while (std::getline(reader, word)) {
-        for (char c : word) {
+        for (char &c : word) {
+            if (c == '\'') c = 'z' + 1;
             assert(IS_LCASE(c));
         }
         root.insert(word, &word[0]);
@@ -67,8 +68,9 @@ Trie::Trie(std::string file) {
 
 void Trie::scan(std::vector<std::string>& ans, std::string at, std::string called) const {
     ans.clear();
-    for (char c : at) {
-        assert(IS_LCASE(c) || c == '?');
+    for (char &c : at) {
+        if (c == '\'') c = 'z' + 1;
+        assert(IS_LCASE(c) || c == '_');
     }
     uint32_t m = -1;
     for (char c : called) {
@@ -88,5 +90,6 @@ std::string Trie::strScan(std::string at, std::string called) const {
         r += ",\"" + *p + "\"";
         ++p;
     }
+    for (char &c : r) if (c == 'z' + 1) c = '\'';
     return r + "]";
 }
