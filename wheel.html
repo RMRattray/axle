@@ -214,7 +214,7 @@
             </div>
         </div>
         <div class="button-row">
-            <p id="instructions">Click and drag through slots to toggle white (open) and green (closed), then click DONE.</p>
+            <p id="instructions">Click and drag through slots to toggle white (open) and green (closed). Right-click a closed slot to assign punctuation, then click DONE.</p>
             <button id="only-button">DONE</button>
             <div class="letter"></div>
             <div class="called"></div>
@@ -240,6 +240,7 @@
                 slot.classList.toggle("open", open);
                 if (!open) {
                     slot.textContent = "";
+                    delete slot.dataset.fixedPunctuation;
                 }
             }
 
@@ -273,13 +274,14 @@
                 slots.forEach((slot) => {
                     slot.classList.remove("open");
                     slot.textContent = "";
+                    delete slot.dataset.fixedPunctuation;
                 });
                 letterDiv.textContent = "";
                 calledDiv.textContent = "";
                 answersDiv.innerHTML = "";
                 button.textContent = "DONE";
                 instructions.textContent =
-                    "Click and drag through slots to toggle white (open) and green (closed), then click DONE.";
+                    "Click and drag through slots to toggle white (open) and green (closed). Right-click a closed slot to assign punctuation, then click DONE.";
             }
 
             function getBoardRowsText() {
@@ -289,7 +291,10 @@
                             if (!cell.classList.contains("slot")) return " ";
                             if (!cell.classList.contains("open")) return " ";
                             const value = (cell.textContent || "").trim().toLowerCase();
-                            return value ? value : "?";
+                            if (!value) return "_";
+                            if (/^[a-z]$/.test(value)) return value;
+                            if (value === "'") return value;
+                            return value;
                         })
                         .join("");
                 });
@@ -298,8 +303,8 @@
 
             function extractWords(rows) {
                 const allText = rows.join(" ");
-                const words = allText.match(/[a-z?]+/g) || [];
-                return words;
+                const words = allText.match(/[a-z_']+/g) || [];
+                return words.filter((word) => /[a-z_]/.test(word));
             }
 
             function getPossList(payload) {
@@ -406,8 +411,30 @@
                 }
 
                 if ((phase === "locked" || phase === "solved") && slot.classList.contains("open") && currentLetter) {
+                    if (slot.dataset.fixedPunctuation === "true") return;
                     slot.textContent = currentLetter;
                 }
+            });
+
+            board.addEventListener("contextmenu", (event) => {
+                const slot = event.target.closest(".slot");
+                if (!slot || phase !== "setup" || !slot.classList.contains("open")) return;
+                event.preventDefault();
+
+                const raw = window.prompt("Punctuation for this slot (single character). Leave blank to clear.", slot.textContent || "");
+                if (raw === null) return;
+
+                const value = raw.trim();
+                if (!value) {
+                    slot.textContent = "";
+                    delete slot.dataset.fixedPunctuation;
+                    return;
+                }
+
+                const char = value[0];
+                if (/^[a-zA-Z0-9\s]$/.test(char)) return;
+                slot.textContent = char;
+                slot.dataset.fixedPunctuation = "true";
             });
 
             button.addEventListener("click", async () => {
