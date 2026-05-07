@@ -25,7 +25,8 @@ void TrieNode::insert(std::string& word, char * from) {
 } 
 
 // Check against the string at (of the form "l?n??ell??") with un-called letters given by "can"
-void TrieNode::scan(std::vector<std::string> &ans, char * at, uint32_t can) const {
+void TrieNode::scan(std::vector<std::string> &ans, char * at, uint32_t can, int max) const {
+    if (ans.size() >= max) return;
     switch (*at) {
         case '\0':
         {
@@ -38,8 +39,8 @@ void TrieNode::scan(std::vector<std::string> &ans, char * at, uint32_t can) cons
             // can be anything in "can" - check all existing children
             int i = 0;
             uint32_t m = 2;
-            while (m < (1 << 27)) {
-                if (can & m & active) children[i]->scan(ans, at + 1, can);
+            while (m < (1 << 27) && ans.size() < max) {
+                if (can & m & active) children[i]->scan(ans, at + 1, can, max);
                 m *= 2; ++i;
             }
         }
@@ -47,7 +48,7 @@ void TrieNode::scan(std::vector<std::string> &ans, char * at, uint32_t can) cons
         default:
         {
             // is some other letter - check
-            if (active & (1 << (*at - 'a' + 1))) children[*at - 'a']->scan(ans, at + 1, can);
+            if (active & (1 << (*at - 'a' + 1))) children[*at - 'a']->scan(ans, at + 1, can, max);
         }
     }
 }
@@ -74,7 +75,7 @@ void Trie::scan(std::vector<std::string>& ans, std::string at, std::string calle
         assert(IS_LCASE(c));
         m &= ~(1 << (c - 'a' + 1));
     }
-    root.scan(ans, &at[0], m);
+    root.scan(ans, &at[0], m, 256);
 }
 
 std::string Trie::strScan(std::string at, std::string called) const {

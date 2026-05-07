@@ -7,7 +7,7 @@ class TrieNode {
     public:
     TrieNode();
     void insert(std::string& word, char * from);
-    void scan(std::vector<std::string> &ans, char * at, uint32_t can) const;
+    void scan(std::vector<std::string> &ans, char * at, uint32_t can, int max) const;
 
     private:
     uint32_t active;

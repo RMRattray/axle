@@ -8,7 +8,7 @@ int main()
 {
     crow::SimpleApp app; //define your crow application
 
-    Trie t("test_words.txt");
+    Trie t("all_words.txt");
 
     //define your endpoint at the root directory
     CROW_ROUTE(app, "/")([](){
