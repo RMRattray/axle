@@ -1,4 +1,5 @@
 #include "crow.h"
+#include "crow/middlewares/cors.h"
 //#include "crow_all.h"
 #include "trie.h"
 
@@ -6,7 +7,14 @@
 
 int main()
 {
-    crow::SimpleApp app; //define your crow application
+    crow::App<crow::CORSHandler> app; //define your crow application
+
+    auto& cors = app.get_middleware<crow::CORSHandler>();
+    cors.global().origin("*").methods(
+        crow::HTTPMethod::GET,
+        crow::HTTPMethod::POST,
+        crow::HTTPMethod::OPTIONS)
+        .headers("Content-Type", "Authorization").allow_credentials();
 
     Trie t("all_words.txt");
 
