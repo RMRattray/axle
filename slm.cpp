@@ -1,5 +1,6 @@
 #include "slm.h"
 
+#include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <random>
@@ -150,23 +151,47 @@ std::shared_ptr<std::vector<std::string>> SmallLanguageModel::speak(const std::v
     return r;
 }
 
-uint64_t SmallLanguageModel::evaluate(const std::vector<std::string>& words) {
+uint64_t SmallLanguageModel::evaluate(const std::vector<std::string>& words) const {
     uint64_t r = 0;
     for (int i = 0; i < words.size(); ++i) {
-        r += weights[0] * monograms[words[i]];
+        if (monograms.find(words[i]) != monograms.end())
+            r += weights[0] * monograms.at(words[i]);
     }
+    if (words.size() == 1) return r;
     for (int i = 0; i < words.size() - 1; ++i) {
-        r += weights[1] * bigrams[make_pair(words[i], words[i + 1])];
+        if (bigrams.find(make_pair(words[i], words[i + 1])) != bigrams.end())
+            r += weights[1] * bigrams.at(make_pair(words[i], words[i + 1]));
     }
+    if (words.size() == 2) return r;
     for (int i = 0; i < words.size() - 2; ++i) {
-        r += weights[2] * trigrams[make_tuple(words[i], words[i + 1], words[i + 2])];
-        r += weights[3] * attn_2[make_pair(words[i], words[i + 2])];
+        if (trigrams.find(make_tuple(words[i], words[i + 1], words[i + 2])) != trigrams.end())
+            r += weights[2] * trigrams.at(make_tuple(words[i], words[i + 1], words[i + 2]));
+        if (attn_2.find(make_pair(words[i], words[i + 2])) != attn_2.end())
+            r += weights[3] * attn_2.at(make_pair(words[i], words[i + 2]));
     }
+    if (words.size() == 3) return r;
     for (int i = 0; i < words.size() - 3; ++i) {
-        r += weights[4] * quadrigrams[make_tuple(words[i], words[i + 1], words[i + 2], words[i + 3])];
-        r += weights[5] * attn_3[make_pair(words[i], words[i + 3])];
+        if (quadrigrams.find(make_tuple(words[i], words[i + 1], words[i + 2], words[i + 3])) != quadrigrams.end())
+            r += weights[4] * quadrigrams.at(make_tuple(words[i], words[i + 1], words[i + 2], words[i + 3]));
+        if (attn_3.find(make_pair(words[i], words[i + 3])) != attn_3.end())
+            r += weights[5] * attn_3.at(make_pair(words[i], words[i + 3]));
     }
     return r;
+}
+
+void SmallLanguageModel::compress(std::vector<std::string>& words) const {
+    sort(words);
+    auto h = words.begin();
+    while (h != words.end() && monograms.find(*h) != monograms.end() && (h - words.begin() < 12)) ++h;
+    words.erase(h, words.end());
+}
+
+void SmallLanguageModel::sort(std::vector<std::string>& words) const {
+    std::sort(words.begin(), words.end(), [this](auto& a, auto& b) { 
+        uint64_t aa = (monograms.find(a) == monograms.end()) ? 0 : monograms.at(a);
+        uint64_t bb = (monograms.find(b) == monograms.end()) ? 0 : monograms.at(b);
+        return aa > bb;
+    });
 }
 
 void SmallLanguageModel::writeData(std::string filename) {

@@ -41,7 +41,9 @@ class SmallLanguageModel {
     void train(std::string text_file);
     void writeData(std::string filename);
     void readData(std::string filename);
-    uint64_t evaluate(const std::vector<std::string>& words);
+    uint64_t evaluate(const std::vector<std::string>& words) const;
+    void compress(std::vector<std::string>& words) const;
+    void sort(std::vector<std::string>& words) const;
     std::shared_ptr<std::vector<std::string>> speak(const std::vector<std::string>& input);
 
     private:
