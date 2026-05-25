@@ -16,8 +16,6 @@ int main() {
     std::cout << "Finished reading Romeo and Juliet" << std::endl;
     s.gather("training_data/pg2701.txt");
     std::cout << "Finished reading Moby Dick; or, the Whale" << std::endl;
-    s.train("input.txt");
-    std::cout << "Finished training on one paragraph of sample input" << std::endl;
     s.writeData("info.bin");
     std::cout << "Finished writing out fixed model" << std::endl;
 
