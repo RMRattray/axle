@@ -16,18 +16,38 @@
                 box-sizing: border-box;
             }
 
+            html,
+            body {
+                height: 100%;
+                overflow: hidden;
+            }
+
             body {
                 margin: 0;
-                padding: 24px;
-                min-height: 100vh;
+                padding: 16px;
+                max-height: 100vh;
+                display: flex;
+                flex-direction: column;
                 background: radial-gradient(circle at top, #1f4f82, var(--bg));
                 color: var(--text);
                 font-family: Arial, sans-serif;
             }
 
+            .layout {
+                display: flex;
+                flex-direction: column;
+                flex: 1 1 0;
+                min-height: 0;
+                max-height: 100%;
+            }
+
+            .controls {
+                flex-shrink: 0;
+            }
+
             .board {
                 width: fit-content;
-                margin: 0 auto 20px;
+                margin: 0 auto 12px;
                 padding: 12px;
                 border-radius: 18px;
                 background: linear-gradient(180deg, #204c7f, #0f2f51);
@@ -101,8 +121,8 @@
             }
 
             .letter {
-                min-height: 62px;
-                font-size: 56px;
+                min-height: 48px;
+                font-size: 48px;
                 font-weight: 800;
                 letter-spacing: 2px;
             }
@@ -114,24 +134,39 @@
                 opacity: 0.9;
             }
 
+            .results {
+                flex: 0 0 auto;
+                min-height: 0;
+                display: flex;
+                gap: 12px;
+                overflow: hidden;
+            }
+
+            .results:has(.answer-column),
+            .results:has(.guesses table) {
+                flex: 1 1 0;
+                margin-top: 12px;
+            }
+
             .answers {
-                margin: 18px auto 0;
-                max-width: 95vw;
+                flex: 1 1 0;
+                min-width: 0;
+                min-height: 0;
                 display: flex;
                 gap: 10px;
-                align-items: flex-start;
-                overflow-x: auto;
-                padding-bottom: 10px;
+                align-items: stretch;
+                overflow: auto;
             }
 
             .answer-column {
-                max-height: 320px;
+                flex: 1 0 140px;
+                min-height: 0;
+                max-height: 100%;
                 overflow-y: auto;
                 background: rgba(6, 26, 47, 0.86);
                 border: 2px solid #2a5f95;
                 border-radius: 8px;
                 padding: 8px;
-                flex: 1;
             }
 
             .answer-column h4 {
@@ -146,15 +181,16 @@
             }
 
             .guesses {
-                margin: 18px auto 0;
-                max-width: 95vw;
+                flex: 1 0 min(320px, 38%);
+                min-width: 200px;
+                min-height: 0;
+                overflow-y: auto;
             }
 
             .guesses h3 {
                 margin: 0 0 8px;
                 font-size: 16px;
                 color: #9fc7f5;
-                text-align: center;
             }
 
             .guesses table {
@@ -190,6 +226,8 @@
         </style>
     </head>
     <body>
+        <div class="layout">
+        <div class="controls">
         <div class="board">
             <div class="board-row">
                 <div class="empty"></div>
@@ -262,8 +300,12 @@
             <div class="letter"></div>
             <div class="called"></div>
         </div>
-        <div class="guesses"></div>
-        <div class="answers"></div>
+        </div>
+        <section class="results">
+            <div class="guesses"></div>
+            <div class="answers"></div>
+        </section>
+        </div>
         <script>
             const button = document.getElementById("only-button");
             const instructions = document.getElementById("instructions");
