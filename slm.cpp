@@ -16,6 +16,7 @@ void SmallLanguageModel::iterateThroughTokens(std::string text_file, slmProcesso
         std::string last[4] = { "", "", "", "" };
         int ind = 3;
         bool ran_last = false;
+        uint64_t read = 0;
         while (file.get(ch)) {
             if (ch == '\0') continue;
             if (ch >= 'A' && ch <= 'Z') ch |= 32;
@@ -25,14 +26,16 @@ void SmallLanguageModel::iterateThroughTokens(std::string text_file, slmProcesso
             } else {
                 if (!ran_last) {
                     (this->*process)(last, ind);
-                    ind = (ind + 1) & 3;
+                    ind = (ind + 1) & 3; ++read;
+                    // if ((read & 4095) == 0) std::cout << "Read " << read << " tokens" << std::endl;
                     last[ind] = "";
                     ran_last = true;
                 }
                 if (ch != ' ') {
                     last[ind] = std::string(1, ch);
                     (this->*process)(last, ind);
-                    ind = (ind + 1) & 3;
+                    ind = (ind + 1) & 3; ++read;
+                    // if ((read & 4095) == 0) std::cout << "Read " << read << " tokens" << std::endl;
                     last[ind] = "";
                     ran_last = true;
                 }
@@ -40,6 +43,8 @@ void SmallLanguageModel::iterateThroughTokens(std::string text_file, slmProcesso
         }
         if (!ran_last) (this->*process)(last, ind);
         file.close();
+    } else {
+        std::cout << "Failed to open file: " << text_file << std::endl;
     }
 }
 
@@ -61,22 +66,22 @@ void SmallLanguageModel::gather(std::string text_file) {
 }
 
 void SmallLanguageModel::updateWts(std::string last[], int ind) {
-    const double lr = 0.000001;   // learning rate
+    const double lr = 0.00001;   // learning rate
 
     std::string after[3] = { last[(ind + 1) & 3],
                              last[(ind + 2) & 3],
-                             last[ind] };
+                             last[(ind + 3) & 3] };
 
     // --- 1. Predict next word using current weights ---
     std::string predicted = addWord(after);
 
     // --- 2. Identify the true next word ---
-    std::string truth = last[(ind + 3) & 3];
+    std::string truth = last[ind];
 
     if (predicted == truth) return;  // no update needed
 
     // --- 3. Compute feature values for TRUE word ---
-    double f_true[6];
+    uint32_t f_true[6];
     f_true[0] = monograms[truth];
     f_true[1] = bigrams[{after[2], truth}];
     f_true[2] = trigrams[{after[1], after[2], truth}];
@@ -85,7 +90,7 @@ void SmallLanguageModel::updateWts(std::string last[], int ind) {
     f_true[5] = attn_3[{after[0], truth}];
 
     // --- 4. Compute feature values for PREDICTED word ---
-    double f_pred[6];
+    uint32_t f_pred[6];
     f_pred[0] = monograms[predicted];
     f_pred[1] = bigrams[{after[2], predicted}];
     f_pred[2] = trigrams[{after[1], after[2], predicted}];
@@ -101,6 +106,10 @@ void SmallLanguageModel::updateWts(std::string last[], int ind) {
 
 void SmallLanguageModel::train(std::string text_file) {
     iterateThroughTokens(text_file, &SmallLanguageModel::updateWts);
+    for (int i = 0; i < 6; ++i) {
+        std::cout << weights[i] << " ";
+    }
+    std::cout << "<- weights" << std::endl;
 }
 
 std::string SmallLanguageModel::addWord(const std::string after[]) {
@@ -115,8 +124,10 @@ std::string SmallLanguageModel::addWord(const std::string after[]) {
         probs[word] += weights[5] * attn_3[make_pair(after[0], word)];
         t += probs[word];
     }
+
+    if (t == 0) return "\n";
     
-    std::uniform_int_distribution<> distrib(1, t);
+    std::uniform_int_distribution<uint64_t> distrib(0, t - 1);
     t = distrib(gen);
 
     for (auto& [word, prob] : probs) {
@@ -132,7 +143,7 @@ std::shared_ptr<std::vector<std::string>> SmallLanguageModel::speak(const std::v
     r->push_back(input[input.size() - 3]);
     r->push_back(input[input.size() - 2]);
     r->push_back(input[input.size() - 1]);
-    while (r->size() < 256 && !(r->size() > 0 && r->back() == "\n")) {
+    while (r->size() < 32) {
         std::string a[3] = { r->at(r->size() - 3), r->at(r->size() - 2), r->at(r->size() - 1) };
         r->push_back(addWord(a));
     }

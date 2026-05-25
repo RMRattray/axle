@@ -56,7 +56,7 @@ class SmallLanguageModel {
     std::unordered_map<std::tuple<std::string, std::string, std::string, std::string>, uint32_t, QuadrupleHash> quadrigrams;
     std::unordered_map<std::pair<std::string, std::string>, uint32_t, PairHash> attn_3;
     uint64_t total = 0;
-    uint64_t weights[6] = { 1, 1, 1, 1, 1, 1 };
+    uint64_t weights[6] = { 558330, 171797, 128848, 257695, 42950, 257695 };
 
     std::mt19937 gen; // mersenne_twister_engine seeded with rd()
 };
