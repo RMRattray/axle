@@ -3,6 +3,7 @@
 #include <unordered_map>
 #include <vector>
 #include <cstdint>
+#include <random>
 
 struct PairHash {
     std::size_t operator()(const std::pair<std::string, std::string>& p) const noexcept {
@@ -40,13 +41,14 @@ class SmallLanguageModel {
     void train(std::string text_file);
     void writeData(std::string filename);
     void readData(std::string filename);
-    uint32_t evaluate(const std::vector<std::string>& words);
+    uint64_t evaluate(const std::vector<std::string>& words);
     std::shared_ptr<std::vector<std::string>> speak(const std::vector<std::string>& input);
 
     private:
     void iterateThroughTokens(std::string text_file, slmProcessor process);
     void updateCts(std::string last[], int ind);
     void updateWts(std::string last[], int ind);
+    std::string addWord(const std::string after[]);
     std::unordered_map<std::string, uint32_t> monograms;
     std::unordered_map<std::pair<std::string, std::string>, uint32_t, PairHash> bigrams;
     std::unordered_map<std::tuple<std::string, std::string, std::string>, uint32_t, TupleHash> trigrams;
@@ -54,5 +56,7 @@ class SmallLanguageModel {
     std::unordered_map<std::tuple<std::string, std::string, std::string, std::string>, uint32_t, QuadrupleHash> quadrigrams;
     std::unordered_map<std::pair<std::string, std::string>, uint32_t, PairHash> attn_3;
     uint64_t total = 0;
-    uint64_t weights[6] = { 0, 0, 0, 0, 0, 0 };
+    uint64_t weights[6] = { 1, 1, 1, 1, 1, 1 };
+
+    std::mt19937 gen; // mersenne_twister_engine seeded with rd()
 };
