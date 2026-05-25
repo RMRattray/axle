@@ -3,6 +3,8 @@ Crow was made to work on Linux with `sudo apt-get install libasio-dev` and by in
 
 Compiled with `g++ main.cpp trie.cpp slm.cpp -o axle`.
 Currently can be tested with the curl command: `curl http://localhost:18080/wheel/ -d '{"fmt":"_t __ a t__t_ _n__e__a___ a__no__e__e_","cld":"taneo"}'`
+Compiled with `g++ main.cpp trie.cpp -o axle`.
+Currently can be tested with the curl command: `curl http://localhost:18080/wheel/ -d '{"fmt":"_t __ a t__t_ _n__e__a___ a__no__e__e_","cld":"taneo"}'`
 or `curl http://localhost:18080/wheel/ -d '{"fmt":"__n_____","cld":"n"}'` for more words
 or
 
