@@ -10,7 +10,10 @@ int main() {
     std::vector<std::vector<std::string>> d = {
         { "never", "gonna", "give", "you", "up" },
         { "newer", "bunny", "give", "you", "up" },
-        { "never", "gonna", "give", "add", "go" }
+        { "never", "gonna", "give", "add", "go" },
+        { "leave", "me", "alone" },
+        { "leave", "him", "alone" },
+        { "leave", "he", "alone" }
     };
 
     for (auto& p: d) {
