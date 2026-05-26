@@ -5,6 +5,8 @@
 #include <iostream>
 #include <random>
 
+#define OUTPUT_THRESHHOLD 12
+
 SmallLanguageModel::SmallLanguageModel() : gen(std::random_device{}()) {
     total = 0;
 }
@@ -206,11 +208,11 @@ void SmallLanguageModel::writeData(std::string filename) {
     // ---- MONOGRAMS ----
     uint32_t size = 0;
     for (auto& [token, count] : monograms) {
-        if (count >= 12) ++size;
+        if (count >= OUTPUT_THRESHHOLD * OUTPUT_THRESHHOLD * OUTPUT_THRESHHOLD * OUTPUT_THRESHHOLD) ++size;
     }
     file.write(reinterpret_cast<const char*>(&size), sizeof(uint32_t));
     for (auto& [token, count] : monograms) {
-        if (count < 12) continue;
+        if (count < OUTPUT_THRESHHOLD * OUTPUT_THRESHHOLD * OUTPUT_THRESHHOLD * OUTPUT_THRESHHOLD) continue;
         writeString(token);
         file.write(reinterpret_cast<const char*>(&count), sizeof(uint32_t));
     }
@@ -218,11 +220,11 @@ void SmallLanguageModel::writeData(std::string filename) {
     // ---- BIGRAMS ----
     size = 0;
     for (auto& [token, count] : bigrams) {
-        if (count >= 12) ++size;
+        if (count >= OUTPUT_THRESHHOLD * OUTPUT_THRESHHOLD * OUTPUT_THRESHHOLD) ++size;
     }
     file.write(reinterpret_cast<const char*>(&size), sizeof(uint32_t));
     for (auto& [key, count] : bigrams) {
-        if (count < 12) continue;
+        if (count < OUTPUT_THRESHHOLD * OUTPUT_THRESHHOLD * OUTPUT_THRESHHOLD) continue;
         writeString(key.first);
         writeString(key.second);
         file.write(reinterpret_cast<const char*>(&count), sizeof(uint32_t));
@@ -231,11 +233,11 @@ void SmallLanguageModel::writeData(std::string filename) {
     // ---- TRIGRAMS ----
     size = 0;
     for (auto& [token, count] : trigrams) {
-        if (count >= 12) ++size;
+        if (count >= OUTPUT_THRESHHOLD * OUTPUT_THRESHHOLD) ++size;
     }
     file.write(reinterpret_cast<const char*>(&size), sizeof(uint32_t));
     for (auto& [key, count] : trigrams) {
-        if (count < 12) continue;
+        if (count < OUTPUT_THRESHHOLD * OUTPUT_THRESHHOLD) continue;
         writeString(std::get<0>(key));
         writeString(std::get<1>(key));
         writeString(std::get<2>(key));
@@ -245,11 +247,11 @@ void SmallLanguageModel::writeData(std::string filename) {
     // ---- ATTENTION 2 ----
     size = 0;
     for (auto& [token, count] : attn_2) {
-        if (count >= 12) ++size;
+        if (count >= OUTPUT_THRESHHOLD * OUTPUT_THRESHHOLD * OUTPUT_THRESHHOLD) ++size;
     }
     file.write(reinterpret_cast<const char*>(&size), sizeof(uint32_t));
     for (auto& [key, count] : attn_2) {
-        if (count < 12) continue;
+        if (count < OUTPUT_THRESHHOLD * OUTPUT_THRESHHOLD * OUTPUT_THRESHHOLD) continue;
         writeString(key.first);
         writeString(key.second);
         file.write(reinterpret_cast<const char*>(&count), sizeof(uint32_t));
@@ -258,11 +260,11 @@ void SmallLanguageModel::writeData(std::string filename) {
     // ---- QUADRIGRAMS ----
     size = 0;
     for (auto& [token, count] : quadrigrams) {
-        if (count >= 12) ++size;
+        if (count >= OUTPUT_THRESHHOLD) ++size;
     }
     file.write(reinterpret_cast<const char*>(&size), sizeof(uint32_t));
     for (auto& [key, count] : quadrigrams) {
-        if (count < 12) continue;
+        if (count < OUTPUT_THRESHHOLD) continue;
         writeString(std::get<0>(key));
         writeString(std::get<1>(key));
         writeString(std::get<2>(key));
@@ -273,11 +275,11 @@ void SmallLanguageModel::writeData(std::string filename) {
     // ---- ATTENTION 3 ----
     size = 0;
     for (auto& [token, count] : attn_3) {
-        if (count >= 12) ++size;
+        if (count >= OUTPUT_THRESHHOLD * OUTPUT_THRESHHOLD * OUTPUT_THRESHHOLD) ++size;
     }
     file.write(reinterpret_cast<const char*>(&size), sizeof(uint32_t));
     for (auto& [key, count] : attn_3) {
-        if (count < 12) continue;
+        if (count < OUTPUT_THRESHHOLD * OUTPUT_THRESHHOLD * OUTPUT_THRESHHOLD) continue;
         writeString(key.first);
         writeString(key.second);
         file.write(reinterpret_cast<const char*>(&count), sizeof(uint32_t));
