@@ -1,21 +1,26 @@
 #include "slm.h"
 
 #include <iostream>
+#include <filesystem>
 
 int main() {
     SmallLanguageModel s;
-    s.gather("all_words.txt");
-    std::cout << "Finished reading word list" << std::endl;
-    s.gather("training_data/pg84.txt");
-    std::cout << "Finished reading Frankenstein; or, the Modern Prometheus" << std::endl;
-    s.gather("training_data/pg1184.txt");
-    std::cout << "Finished reading The Count of Monte Cristo" << std::endl;
-    s.gather("training_data/pg1342.txt");
-    std::cout << "Finished reading Pride and Prejudice" << std::endl;
-    s.gather("training_data/pg1513.txt");
-    std::cout << "Finished reading Romeo and Juliet" << std::endl;
-    s.gather("training_data/pg2701.txt");
-    std::cout << "Finished reading Moby Dick; or, the Whale" << std::endl;
+    std::string path = "./training_data"; // Your target directory
+    try {
+        // Check if directory exists
+        if (std::filesystem::exists(path) && std::filesystem::is_directory(path)) {
+            // Iterate over each file in the directory
+            for (const auto& entry : std::filesystem::directory_iterator(path)) {
+                // Ensure we only open regular files (skip subfolders/links)
+                if (std::filesystem::is_regular_file(entry.path())) {
+                    s.gather(entry.path());
+                    std::cout << "Finished reading: " << entry.path().filename() << std::endl;
+                }
+            }
+        }
+    } catch (const std::filesystem::filesystem_error& e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+    }
     s.writeData("info.bin");
     std::cout << "Finished writing out fixed model" << std::endl;
 
