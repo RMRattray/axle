@@ -1,0 +1,8 @@
+training_data/*
+par*
+test*
+axle
+*.deb
+info.bin
+info.bin_old
+*.txt

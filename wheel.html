@@ -16,18 +16,38 @@
                 box-sizing: border-box;
             }
 
+            html,
+            body {
+                height: 100%;
+                overflow: hidden;
+            }
+
             body {
                 margin: 0;
-                padding: 24px;
-                min-height: 100vh;
+                padding: 16px;
+                max-height: 100vh;
+                display: flex;
+                flex-direction: column;
                 background: radial-gradient(circle at top, #1f4f82, var(--bg));
                 color: var(--text);
                 font-family: Arial, sans-serif;
             }
 
+            .layout {
+                display: flex;
+                flex-direction: column;
+                flex: 1 1 0;
+                min-height: 0;
+                max-height: 100%;
+            }
+
+            .controls {
+                flex-shrink: 0;
+            }
+
             .board {
                 width: fit-content;
-                margin: 0 auto 20px;
+                margin: 0 auto 12px;
                 padding: 12px;
                 border-radius: 18px;
                 background: linear-gradient(180deg, #204c7f, #0f2f51);
@@ -101,8 +121,8 @@
             }
 
             .letter {
-                min-height: 62px;
-                font-size: 56px;
+                min-height: 48px;
+                font-size: 48px;
                 font-weight: 800;
                 letter-spacing: 2px;
             }
@@ -114,24 +134,39 @@
                 opacity: 0.9;
             }
 
+            .results {
+                flex: 0 0 auto;
+                min-height: 0;
+                display: flex;
+                gap: 12px;
+                overflow: hidden;
+            }
+
+            .results:has(.answer-column),
+            .results:has(.guesses table) {
+                flex: 1 1 0;
+                margin-top: 12px;
+            }
+
             .answers {
-                margin: 18px auto 0;
-                max-width: 95vw;
+                flex: 1 1 0;
+                min-width: 0;
+                min-height: 0;
                 display: flex;
                 gap: 10px;
-                align-items: flex-start;
-                overflow-x: auto;
-                padding-bottom: 10px;
+                align-items: stretch;
+                overflow: auto;
             }
 
             .answer-column {
-                max-height: 320px;
+                flex: 1 0 140px;
+                min-height: 0;
+                max-height: 100%;
                 overflow-y: auto;
                 background: rgba(6, 26, 47, 0.86);
                 border: 2px solid #2a5f95;
                 border-radius: 8px;
                 padding: 8px;
-                flex: 1;
             }
 
             .answer-column h4 {
@@ -144,9 +179,55 @@
                 font-size: 14px;
                 line-height: 1.35;
             }
+
+            .guesses {
+                flex: 1 0 min(320px, 38%);
+                min-width: 200px;
+                min-height: 0;
+                overflow-y: auto;
+            }
+
+            .guesses h3 {
+                margin: 0 0 8px;
+                font-size: 16px;
+                color: #9fc7f5;
+            }
+
+            .guesses table {
+                width: 100%;
+                border-collapse: collapse;
+                background: rgba(6, 26, 47, 0.86);
+                border: 2px solid #2a5f95;
+                border-radius: 8px;
+                overflow: hidden;
+            }
+
+            .guesses th,
+            .guesses td {
+                padding: 8px 12px;
+                text-align: left;
+                font-size: 14px;
+            }
+
+            .guesses th {
+                background: rgba(32, 76, 127, 0.6);
+                color: #9fc7f5;
+            }
+
+            .guesses tr:nth-child(even) td {
+                background: rgba(15, 47, 81, 0.45);
+            }
+
+            .guesses td.score {
+                text-align: right;
+                font-variant-numeric: tabular-nums;
+                white-space: nowrap;
+            }
         </style>
     </head>
     <body>
+        <div class="layout">
+        <div class="controls">
         <div class="board">
             <div class="board-row">
                 <div class="empty"></div>
@@ -219,7 +300,12 @@
             <div class="letter"></div>
             <div class="called"></div>
         </div>
-        <div class="answers"></div>
+        </div>
+        <section class="results">
+            <div class="guesses"></div>
+            <div class="answers"></div>
+        </section>
+        </div>
         <script>
             const button = document.getElementById("only-button");
             const instructions = document.getElementById("instructions");
@@ -227,6 +313,7 @@
             const slots = Array.from(document.querySelectorAll(".slot"));
             const letterDiv = document.querySelector(".letter");
             const calledDiv = document.querySelector(".called");
+            const guessesDiv = document.querySelector(".guesses");
             const answersDiv = document.querySelector(".answers");
 
             let phase = "setup"; // setup -> locked -> solved
@@ -278,6 +365,7 @@
                 });
                 letterDiv.textContent = "";
                 calledDiv.textContent = "";
+                guessesDiv.innerHTML = "";
                 answersDiv.innerHTML = "";
                 button.textContent = "DONE";
                 instructions.textContent =
@@ -301,70 +389,139 @@
                 return rowTexts;
             }
 
-            function extractWords(rows) {
-                const allText = rows.join(" ");
-                const words = allText.match(/[a-z_']+/g) || [];
-                return words.filter((word) => /[a-z_]/.test(word));
+            function buildFmtString(rows) {
+                return rows.join("\n");
             }
 
-            function getPossList(payload) {
-                if (!payload || typeof payload !== "object") return [];
-                if (Array.isArray(payload.poss)) return payload.poss;
-                if (Array.isArray(payload.words)) return payload.words;
-                if (Array.isArray(payload.results)) return payload.results;
-                return [];
+            function getFmtWordLabels(fmt) {
+                const labels = [];
+                let cur = "";
+                for (let i = 0; i < fmt.length; i++) {
+                    const c = fmt[i];
+                    const isWordChar = (c >= "a" && c <= "z") || c === "_" || c === "'";
+                    if (isWordChar) {
+                        cur += c;
+                    } else {
+                        if (cur) {
+                            const first = cur[0];
+                            if ((first >= "a" && first <= "z") || first === "_" || first === "'") {
+                                labels.push(cur);
+                            }
+                            cur = "";
+                        }
+                    }
+                }
+                if (cur) {
+                    const first = cur[0];
+                    if ((first >= "a" && first <= "z") || first === "_" || first === "'") {
+                        labels.push(cur);
+                    }
+                }
+                return labels;
             }
 
-            async function solveBoard(triggeredByClick) {
-                const rows = getBoardRowsText();
-                const words = extractWords(rows);
+            function renderGuesses(out) {
+                guessesDiv.innerHTML = "";
+                if (!Array.isArray(out) || !out.length) return;
+
+                const heading = document.createElement("h3");
+                heading.textContent = "Most likely phrases";
+                guessesDiv.appendChild(heading);
+
+                const table = document.createElement("table");
+                table.innerHTML = "<thead><tr><th>Phrase</th><th>Score</th></tr></thead>";
+                const tbody = document.createElement("tbody");
+
+                out.forEach((item) => {
+                    const tr = document.createElement("tr");
+                    const textCell = document.createElement("td");
+                    const scoreCell = document.createElement("td");
+                    textCell.textContent = item && item.text != null ? String(item.text) : "";
+                    scoreCell.className = "score";
+                    scoreCell.textContent = item && item.score != null ? String(item.score) : "";
+                    tr.appendChild(textCell);
+                    tr.appendChild(scoreCell);
+                    tbody.appendChild(tr);
+                });
+
+                table.appendChild(tbody);
+                guessesDiv.appendChild(table);
+            }
+
+            function renderAllColumns(all, labels) {
                 answersDiv.innerHTML = "";
-
-                if (!words.length) {
+                if (!Array.isArray(all) || !all.length) {
                     const emptyColumn = document.createElement("div");
                     emptyColumn.className = "answer-column";
-                    emptyColumn.innerHTML = "<h4>No words found</h4><div>Open some slots first.</div>";
+                    emptyColumn.innerHTML = "<h4>No results</h4><div>(no poss results)</div>";
                     answersDiv.appendChild(emptyColumn);
                     return;
                 }
 
-                for (const fmt of words) {
+                all.forEach((poss, index) => {
+                    const label = labels[index] || `Word ${index + 1}`;
                     const col = document.createElement("div");
                     col.className = "answer-column";
-                    col.innerHTML = `<h4>${fmt}</h4><div>Loading...</div>`;
-                    answersDiv.appendChild(col);
+                    col.innerHTML = `<h4>${label}</h4>`;
 
-                    try {
-                        const response = await fetch("https://rummy.nationalrecordingregistry.net/wheel/", {
-                            method: "POST",
-                            headers: {
-                                "Content-Type": "application/json"
-                            },
-                            body: JSON.stringify({
-                                fmt,
-                                cld: calledLetters.toLowerCase()
-                            })
-                        });
-
-                        if (!response.ok) {
-                            throw new Error(`HTTP ${response.status}`);
-                        }
-
-                        const payload = await response.json();
-                        const poss = getPossList(payload);
-                        if (!poss.length) {
-                            col.innerHTML = `<h4>${fmt}</h4><div>(no poss results)</div>`;
-                            continue;
-                        }
-                        col.innerHTML = `<h4>${fmt}</h4>`;
+                    if (!Array.isArray(poss) || !poss.length) {
+                        const row = document.createElement("div");
+                        row.textContent = "(no poss results)";
+                        col.appendChild(row);
+                    } else {
                         poss.forEach((item) => {
                             const row = document.createElement("div");
                             row.textContent = typeof item === "string" ? item : JSON.stringify(item);
                             col.appendChild(row);
                         });
-                    } catch (error) {
-                        col.innerHTML = `<h4>${fmt}</h4><div>Error: ${error.message}</div>`;
                     }
+
+                    answersDiv.appendChild(col);
+                });
+            }
+
+            async function solveBoard(triggeredByClick) {
+                const rows = getBoardRowsText();
+                const fmt = buildFmtString(rows);
+                guessesDiv.innerHTML = "";
+                answersDiv.innerHTML = "<div class='answer-column'><h4>...</h4><div>Loading...</div></div>";
+
+                if (!fmt.trim() || !/[a-z_]/.test(fmt)) {
+                    guessesDiv.innerHTML = "";
+                    answersDiv.innerHTML = "";
+                    const emptyColumn = document.createElement("div");
+                    emptyColumn.className = "answer-column";
+                    emptyColumn.innerHTML = "<h4>No puzzle text</h4><div>Open some slots first.</div>";
+                    answersDiv.appendChild(emptyColumn);
+                    return;
+                }
+
+                try {
+                    const response = await fetch("https://rummy.nationalrecordingregistry.net/wheel/", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({
+                            fmt,
+                            cld: calledLetters.toLowerCase()
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+
+                    const payload = await response.json();
+                    renderGuesses(payload.out);
+                    renderAllColumns(payload.all, getFmtWordLabels(fmt));
+                } catch (error) {
+                    guessesDiv.innerHTML = "";
+                    answersDiv.innerHTML = "";
+                    const errorColumn = document.createElement("div");
+                    errorColumn.className = "answer-column";
+                    errorColumn.innerHTML = `<h4>Error</h4><div>${error.message}</div>`;
+                    answersDiv.appendChild(errorColumn);
                 }
 
                 if (triggeredByClick && button.textContent === "GO") {

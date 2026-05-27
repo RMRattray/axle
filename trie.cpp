@@ -78,6 +78,11 @@ void Trie::scan(std::vector<std::string>& ans, std::string at, std::string calle
         m &= ~(1 << (c - 'a' + 1));
     }
     root.scan(ans, &at[0], m, 256);
+    for (std::string &s : ans) {
+        for (char &c : s) {
+            if (c == 'z' + 1) c = '\'';
+        }
+    }
 }
 
 std::string Trie::strScan(std::string at, std::string called) const {
