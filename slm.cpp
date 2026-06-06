@@ -1,23 +1,29 @@
 #include "slm.h"
 
 #include <algorithm>
+#include <cctype>
+#include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <map>
 #include <random>
+#include <stdexcept>
+#include <unordered_set>
 
 #define OUTPUT_THRESHHOLD 12
 
-SmallLanguageModel::SmallLanguageModel() : gen(std::random_device{}()) {
+SmallLanguageModelTrainer::SmallLanguageModelTrainer() : gen(std::random_device{}()) {
     total = 0;
 }
 
-// Read through file, tokenizing.  Spaces break words; apostrophes are part of words; all other non-alphabet characters are unique words
-void SmallLanguageModel::iterateThroughTokens(std::string text_file, slmProcessor process) {    
+// Read through file, tokenizing.  Whitespace breaks tokens; apostrophes are part of words; all other non-alphabet characters are unique words
+void SmallLanguageModelTrainer::iterateThroughTokens(std::string text_file, slmProcessor process) {    
     std::ifstream file(text_file);
     if (file.is_open()) {
         char ch;
-        std::string last[4] = { "", "", "", "" };
-        int ind = 3;
+        std::string last[ATTENTION + 1] = { "" };
+        int ind = ATTENTION;
         bool ran_last = false;
         uint64_t read = 0;
         while (file.get(ch)) {
@@ -34,7 +40,7 @@ void SmallLanguageModel::iterateThroughTokens(std::string text_file, slmProcesso
                     last[ind] = "";
                     ran_last = true;
                 }
-                if (ch != ' ') {
+                if (!std::isspace(ch)) { 
                     last[ind] = std::string(1, ch);
                     (this->*process)(last, ind);
                     ind = (ind + 1) & 3; ++read;
@@ -51,32 +57,28 @@ void SmallLanguageModel::iterateThroughTokens(std::string text_file, slmProcesso
     }
 }
 
-void SmallLanguageModel::updateCts(std::string last[], int ind) {
+void SmallLanguageModelTrainer::updateCts(std::string last[], int ind) {
     this->monograms[last[ind]]++;
-    int prev = (ind + 3) & 3;
-    this->bigrams[std::make_pair(last[prev], last[ind])]++;
-    int anteprev = (prev + 3) & 3;
-    this->trigrams[make_tuple(last[anteprev], last[prev], last[ind])]++;
-    this->attn_2[std::make_pair(last[anteprev], last[ind])]++;
-    int ultiprev = (anteprev + 3) & 3;
-    this->quadrigrams[make_tuple(last[ultiprev], last[anteprev], last[prev], last[ind])]++;
-    this->attn_3[std::make_pair(last[ultiprev], last[ind])]++;
+    int prev = ind;
+    int a = ATTENTION;
+    while (a) {
+        --a;
+        --prev; if (prev < 0) ind = ATTENTION;
+        polygrams[a][last[prev]][last[ind]]++;
+    }
     this->total++;
 }
 
-void SmallLanguageModel::gather(std::string text_file) {
-    iterateThroughTokens(text_file, &SmallLanguageModel::updateCts);
+void SmallLanguageModelTrainer::gather(std::string text_file) {
+    iterateThroughTokens(text_file, &SmallLanguageModelTrainer::updateCts);
 }
 
-void SmallLanguageModel::updateWts(std::string last[], int ind) {
+void SmallLanguageModelTrainer::updateWts(std::string last[], const int ind) {
     const double lr = 0.00001;   // learning rate
 
-    std::string after[3] = { last[(ind + 1) & 3],
-                             last[(ind + 2) & 3],
-                             last[(ind + 3) & 3] };
-
     // --- 1. Predict next word using current weights ---
-    std::string predicted = addWord(after);
+    std::string predicted = addWord(last); // if we were doing this correctly,
+    // we would adjust addWord to take ind
 
     // --- 2. Identify the true next word ---
     std::string truth = last[ind];
@@ -84,47 +86,47 @@ void SmallLanguageModel::updateWts(std::string last[], int ind) {
     if (predicted == truth) return;  // no update needed
 
     // --- 3. Compute feature values for TRUE word ---
-    uint32_t f_true[6];
+    uint32_t f_true[ATTENTION + 1];
     f_true[0] = monograms[truth];
-    f_true[1] = bigrams[{after[2], truth}];
-    f_true[2] = trigrams[{after[1], after[2], truth}];
-    f_true[3] = attn_2[{after[1], truth}];
-    f_true[4] = quadrigrams[{after[0], after[1], after[2], truth}];
-    f_true[5] = attn_3[{after[0], truth}];
+    int i = ind;
+    for (int f = 0; f < ATTENTION; ++f) {
+        --i; if (i < 0) i = ATTENTION - 1;
+        f_true[f + 1] = polygrams[f][last[i]][truth];
+    }
 
     // --- 4. Compute feature values for PREDICTED word ---
-    uint32_t f_pred[6];
+    uint32_t f_pred[ATTENTION + 1];
     f_pred[0] = monograms[predicted];
-    f_pred[1] = bigrams[{after[2], predicted}];
-    f_pred[2] = trigrams[{after[1], after[2], predicted}];
-    f_pred[3] = attn_2[{after[1], predicted}];
-    f_pred[4] = quadrigrams[{after[0], after[1], after[2], predicted}];
-    f_pred[5] = attn_3[{after[0], predicted}];
+    i = ind;
+    for (int f = 0; f < ATTENTION; ++f) {
+        --i; if (i < 0) i = ATTENTION - 1;
+        f_pred[f + 1] = polygrams[f][last[i]][predicted];
+    }
 
     // --- 5. Perceptron update: move weights toward truth, away from prediction ---
-    for (int i = 0; i < 6; i++) {
+    for (int i = 0; i <= ATTENTION; i++) {
         weights[i] += lr * (f_true[i] - f_pred[i]);
     }
 }
 
-void SmallLanguageModel::train(std::string text_file) {
-    iterateThroughTokens(text_file, &SmallLanguageModel::updateWts);
+void SmallLanguageModelTrainer::train(std::string text_file) {
+    iterateThroughTokens(text_file, &SmallLanguageModelTrainer::updateWts);
     for (int i = 0; i < 6; ++i) {
         std::cout << weights[i] << " ";
     }
     std::cout << "<- weights" << std::endl;
 }
 
-std::string SmallLanguageModel::addWord(const std::string after[]) {
+// select a word to follow the first word in after[], if that word were preceded
+// by the second word in after[], etc.
+std::string SmallLanguageModelTrainer::addWord(const std::string after[]) {
     uint64_t t = 0;
     std::unordered_map<std::string, uint64_t> probs;
     for (auto& [word, count] : monograms) {
         probs[word] = weights[0] * count;
-        probs[word] += weights[1] * bigrams[make_pair(after[2], word)];
-        probs[word] += weights[2] * trigrams[make_tuple(after[1], after[2], word)];
-        probs[word] += weights[3] * attn_2[make_pair(after[1], word)];
-        probs[word] += weights[4] * quadrigrams[make_tuple(after[0], after[1], after[2], word)];
-        probs[word] += weights[5] * attn_3[make_pair(after[0], word)];
+        for (int d = 0; d < ATTENTION; ++d) {
+            probs[word] += weights[d + 1] * polygrams[d][after[d]][word];
+        }
         t += probs[word];
     }
 
@@ -140,224 +142,132 @@ std::string SmallLanguageModel::addWord(const std::string after[]) {
     return "\n";
 }
 
-std::shared_ptr<std::vector<std::string>> SmallLanguageModel::speak(const std::vector<std::string>& input) {
+std::shared_ptr<std::vector<std::string>> SmallLanguageModelTrainer::speak(const std::vector<std::string>& input) {
     auto r = std::make_shared<std::vector<std::string>>();
-    if (input.size() < 3) return r;
-    r->push_back(input[input.size() - 3]);
-    r->push_back(input[input.size() - 2]);
-    r->push_back(input[input.size() - 1]);
+    std::string a[ATTENTION] = { "" };
+    for (int i = 0; i < ATTENTION && i < input.size(); ++i) {
+        a[i] = input[input.size() - 1 - i];
+    }
     while (r->size() < 32) {
-        std::string a[3] = { r->at(r->size() - 3), r->at(r->size() - 2), r->at(r->size() - 1) };
         r->push_back(addWord(a));
+        std::cout << " " << r->back();
+        for (int i = ATTENTION - 1; i >= 0; --i) {
+            a[i] = a[i - 1];
+        }
+        a[0] = r->back();
     }
     return r;
 }
 
-uint64_t SmallLanguageModel::evaluate(const std::vector<std::string>& words) const {
-    uint64_t r = 0;
-    for (int i = 0; i < words.size(); ++i) {
-        if (monograms.find(words[i]) != monograms.end())
-            r += weights[0] * monograms.at(words[i]);
+std::string chopWord(const std::string& word) {
+    char chopped[MAX_WORD_LENGTH] = { '\0' };
+    if (word.size() < MAX_WORD_LENGTH) {
+        memcpy(chopped, word.c_str(), word.size());
+        memset(chopped + word.size(), 0, MAX_WORD_LENGTH - word.size());
+    } else {
+        memcpy(chopped, word.c_str(), MAX_WORD_LENGTH);
     }
-    if (words.size() == 1) return r;
-    for (int i = 0; i < words.size() - 1; ++i) {
-        if (bigrams.find(make_pair(words[i], words[i + 1])) != bigrams.end())
-            r += weights[1] * bigrams.at(make_pair(words[i], words[i + 1]));
+    return std::string(chopped, MAX_WORD_LENGTH);
+}
+
+void SmallLanguageModelTrainer::writeData() {
+    // Open a file to write monograms
+    std::ofstream word_count_file(WORD_COUNT_FILE, std::ios::binary);
+    if (!word_count_file.is_open()) {
+        throw std::runtime_error("Failed to open file");
+        return;
     }
-    if (words.size() == 2) return r;
-    for (int i = 0; i < words.size() - 2; ++i) {
-        if (trigrams.find(make_tuple(words[i], words[i + 1], words[i + 2])) != trigrams.end())
-            r += weights[2] * trigrams.at(make_tuple(words[i], words[i + 1], words[i + 2]));
-        if (attn_2.find(make_pair(words[i], words[i + 2])) != attn_2.end())
-            r += weights[3] * attn_2.at(make_pair(words[i], words[i + 2]));
+    std::filesystem::path dir = DATA_DIRECTORY;
+
+    // Gather all distinct words up to a length of MAX_WORD_LENGTH
+    // And keep them alphabetized so that output polygram files are alphabetized for easy seeking
+    std::map<std::string, uint32_t> chopped_monograms;
+    std::unordered_map<std::string, std::unordered_set<std::string>> chopped_monograms_to_real;
+    char chopped[MAX_WORD_LENGTH] = { '\0' };
+    for (auto& [word, count] : monograms) {
+        std::string chopped = chopWord(word);
+        chopped_monograms[chopped] += count;
+        chopped_monograms_to_real[chopped].insert(word);
     }
-    if (words.size() == 3) return r;
-    for (int i = 0; i < words.size() - 3; ++i) {
-        if (quadrigrams.find(make_tuple(words[i], words[i + 1], words[i + 2], words[i + 3])) != quadrigrams.end())
-            r += weights[4] * quadrigrams.at(make_tuple(words[i], words[i + 1], words[i + 2], words[i + 3]));
-        if (attn_3.find(make_pair(words[i], words[i + 3])) != attn_3.end())
-            r += weights[5] * attn_3.at(make_pair(words[i], words[i + 3]));
+
+    // If they appear more than once, output them to the monograms file
+    for (auto& [chopped, count] : chopped_monograms) {
+        if (count > OUTPUT_THRESHHOLD) {
+            word_count_file.write(chopped.c_str(), MAX_WORD_LENGTH);
+            word_count_file.write(reinterpret_cast<const char*>(&count), sizeof(uint32_t));
+
+            // And produce their polygrams files, named of the form "golf2", etc
+            std::string fname = std::string(chopped.c_str(), strnlen(chopped.c_str(), MAX_WORD_LENGTH)) + "X";
+            for (int a = 0; a < ATTENTION; ++a) {
+                fname[fname.size() - 1] = '2' + a;
+                std::filesystem::path f = fname;
+                std::ofstream polygram_file(dir / f, std::ios::binary);
+                if (!polygram_file.is_open()) {
+                    throw std::runtime_error("Failed to open file");
+                    return;
+                }
+
+                for (auto& [otherchopped, options] : chopped_monograms_to_real) {
+                    uint32_t total = 0;
+                    for (auto& otherword : options) {
+                        for (auto& thisword : chopped_monograms_to_real[chopped]) {
+                            total += polygrams[a][thisword][otherword];
+                        }
+                    }
+                    if (total > OUTPUT_THRESHHOLD) {
+                        polygram_file.write(otherchopped.c_str(), MAX_WORD_LENGTH);
+                        polygram_file.write(reinterpret_cast<const char*>(&total), sizeof(uint32_t));
+                    }
+                }
+
+                polygram_file.close();
+            }
+        }
     }
+
+    word_count_file.close();
+}
+
+void SmallLanguageModelEvaluator::readData() {
+    std::ifstream word_count_file(WORD_COUNT_FILE, std::ios::binary);
+    if (!word_count_file.is_open()) {
+        throw std::runtime_error("Failed to open file");
+        return;
+    }
+
+    char s[MAX_WORD_LENGTH];
+    uint32_t count;
+    while (!word_count_file.eof()) {
+        word_count_file.read(s, MAX_WORD_LENGTH);
+        word_count_file.read(reinterpret_cast<char*>(&count), sizeof(uint32_t));
+        monograms[std::string(s, MAX_WORD_LENGTH)] = count;
+    }
+
+    word_count_file.close();
+
+    for (auto& [key, value] : monograms) {
+        std::cout << key << ": " << value << std::endl;
+    }
+}
+
+std::vector<std::pair<uint64_t, std::vector<int>>> SmallLanguageModelEvaluator::evaluateAllOptions(const std::vector<std::vector<std::string>>& words, int ans_ct) const {
+    std::vector<std::pair<uint64_t, std::vector<int>>> r(ans_ct, make_pair(0, std::vector(words.size(), 0)));
     return r;
 }
 
-void SmallLanguageModel::compress(std::vector<std::string>& words) const {
+void SmallLanguageModelEvaluator::compress(std::vector<std::string>& words) const {
     sort(words);
     auto h = words.begin();
     while (h != words.end() && monograms.find(*h) != monograms.end() && (h - words.begin() < 12)) ++h;
     words.erase(h, words.end());
 }
 
-void SmallLanguageModel::sort(std::vector<std::string>& words) const {
+void SmallLanguageModelEvaluator::sort(std::vector<std::string>& words) const {
     std::sort(words.begin(), words.end(), [this](auto& a, auto& b) { 
         uint64_t aa = (monograms.find(a) == monograms.end()) ? 0 : monograms.at(a);
         uint64_t bb = (monograms.find(b) == monograms.end()) ? 0 : monograms.at(b);
         return aa > bb;
     });
-}
-
-void SmallLanguageModel::writeData(std::string filename) {
-    std::ofstream file(filename, std::ios::binary);
-    if (!file.is_open()) return;
-
-    auto writeString = [&](const std::string& s) {
-        file.write(s.c_str(), s.size());
-        file.write("\0", 1);
-    };
-
-    // ---- MONOGRAMS ----
-    uint32_t size = 0;
-    for (auto& [token, count] : monograms) {
-        if (count >= OUTPUT_THRESHHOLD * OUTPUT_THRESHHOLD * OUTPUT_THRESHHOLD * OUTPUT_THRESHHOLD) ++size;
-    }
-    file.write(reinterpret_cast<const char*>(&size), sizeof(uint32_t));
-    for (auto& [token, count] : monograms) {
-        if (count < OUTPUT_THRESHHOLD * OUTPUT_THRESHHOLD * OUTPUT_THRESHHOLD * OUTPUT_THRESHHOLD) continue;
-        writeString(token);
-        file.write(reinterpret_cast<const char*>(&count), sizeof(uint32_t));
-    }
-
-    // ---- BIGRAMS ----
-    size = 0;
-    for (auto& [token, count] : bigrams) {
-        if (count >= OUTPUT_THRESHHOLD * OUTPUT_THRESHHOLD * OUTPUT_THRESHHOLD) ++size;
-    }
-    file.write(reinterpret_cast<const char*>(&size), sizeof(uint32_t));
-    for (auto& [key, count] : bigrams) {
-        if (count < OUTPUT_THRESHHOLD * OUTPUT_THRESHHOLD * OUTPUT_THRESHHOLD) continue;
-        writeString(key.first);
-        writeString(key.second);
-        file.write(reinterpret_cast<const char*>(&count), sizeof(uint32_t));
-    }
-
-    // ---- TRIGRAMS ----
-    size = 0;
-    for (auto& [token, count] : trigrams) {
-        if (count >= OUTPUT_THRESHHOLD * OUTPUT_THRESHHOLD) ++size;
-    }
-    file.write(reinterpret_cast<const char*>(&size), sizeof(uint32_t));
-    for (auto& [key, count] : trigrams) {
-        if (count < OUTPUT_THRESHHOLD * OUTPUT_THRESHHOLD) continue;
-        writeString(std::get<0>(key));
-        writeString(std::get<1>(key));
-        writeString(std::get<2>(key));
-        file.write(reinterpret_cast<const char*>(&count), sizeof(uint32_t));
-    }
-
-    // ---- ATTENTION 2 ----
-    size = 0;
-    for (auto& [token, count] : attn_2) {
-        if (count >= OUTPUT_THRESHHOLD * OUTPUT_THRESHHOLD * OUTPUT_THRESHHOLD) ++size;
-    }
-    file.write(reinterpret_cast<const char*>(&size), sizeof(uint32_t));
-    for (auto& [key, count] : attn_2) {
-        if (count < OUTPUT_THRESHHOLD * OUTPUT_THRESHHOLD * OUTPUT_THRESHHOLD) continue;
-        writeString(key.first);
-        writeString(key.second);
-        file.write(reinterpret_cast<const char*>(&count), sizeof(uint32_t));
-    }
-
-    // ---- QUADRIGRAMS ----
-    size = 0;
-    for (auto& [token, count] : quadrigrams) {
-        if (count >= OUTPUT_THRESHHOLD) ++size;
-    }
-    file.write(reinterpret_cast<const char*>(&size), sizeof(uint32_t));
-    for (auto& [key, count] : quadrigrams) {
-        if (count < OUTPUT_THRESHHOLD) continue;
-        writeString(std::get<0>(key));
-        writeString(std::get<1>(key));
-        writeString(std::get<2>(key));
-        writeString(std::get<3>(key));
-        file.write(reinterpret_cast<const char*>(&count), sizeof(uint32_t));
-    }
-
-    // ---- ATTENTION 3 ----
-    size = 0;
-    for (auto& [token, count] : attn_3) {
-        if (count >= OUTPUT_THRESHHOLD * OUTPUT_THRESHHOLD * OUTPUT_THRESHHOLD) ++size;
-    }
-    file.write(reinterpret_cast<const char*>(&size), sizeof(uint32_t));
-    for (auto& [key, count] : attn_3) {
-        if (count < OUTPUT_THRESHHOLD * OUTPUT_THRESHHOLD * OUTPUT_THRESHHOLD) continue;
-        writeString(key.first);
-        writeString(key.second);
-        file.write(reinterpret_cast<const char*>(&count), sizeof(uint32_t));
-    }
-}
-
-void SmallLanguageModel::readData(std::string filename) {
-    std::ifstream file(filename, std::ios::binary);
-    if (!file.is_open()) return;
-
-    auto readString = [&](std::string& out) {
-        out.clear();
-        char c;
-        while (file.get(c)) {
-            if (c == '\0') break;
-            out.push_back(c);
-        }
-    };
-
-    uint32_t size;
-    std::string s1, s2, s3, s4;
-    uint32_t count;
-
-    // ---- MONOGRAMS ----
-    file.read(reinterpret_cast<char*>(&size), sizeof(uint32_t));
-    for (uint32_t i = 0; i < size; i++) {
-        readString(s1);
-        file.read(reinterpret_cast<char*>(&count), sizeof(uint32_t));
-        monograms[s1] = count;
-    }
-
-    // ---- BIGRAMS ----
-    file.read(reinterpret_cast<char*>(&size), sizeof(uint32_t));
-    for (uint32_t i = 0; i < size; i++) {
-        readString(s1);
-        readString(s2);
-        file.read(reinterpret_cast<char*>(&count), sizeof(uint32_t));
-        bigrams[{s1, s2}] = count;
-    }
-
-    // ---- TRIGRAMS ----
-    file.read(reinterpret_cast<char*>(&size), sizeof(uint32_t));
-    for (uint32_t i = 0; i < size; i++) {
-        readString(s1);
-        readString(s2);
-        readString(s3);
-        file.read(reinterpret_cast<char*>(&count), sizeof(uint32_t));
-        trigrams[{s1, s2, s3}] = count;
-    }
-
-    // ---- ATTENTION 2 ----
-    file.read(reinterpret_cast<char*>(&size), sizeof(uint32_t));
-    for (uint32_t i = 0; i < size; i++) {
-        readString(s1);
-        readString(s2);
-        file.read(reinterpret_cast<char*>(&count), sizeof(uint32_t));
-        attn_2[{s1, s2}] = count;
-    }
-
-    // ---- QUADRIGRAMS ----
-    file.read(reinterpret_cast<char*>(&size), sizeof(uint32_t));
-    for (uint32_t i = 0; i < size; i++) {
-        readString(s1);
-        readString(s2);
-        readString(s3);
-        readString(s4);
-        file.read(reinterpret_cast<char*>(&count), sizeof(uint32_t));
-        quadrigrams[{s1, s2, s3, s4}] = count;
-    }
-
-    // ---- ATTENTION 3 ----
-    file.read(reinterpret_cast<char*>(&size), sizeof(uint32_t));
-    for (uint32_t i = 0; i < size; i++) {
-        readString(s1);
-        readString(s2);
-        file.read(reinterpret_cast<char*>(&count), sizeof(uint32_t));
-        attn_3[{s1, s2}] = count;
-    }
 }
 
 
