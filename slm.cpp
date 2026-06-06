@@ -11,7 +11,7 @@
 #include <stdexcept>
 #include <unordered_set>
 
-#define OUTPUT_THRESHHOLD 12
+#define OUTPUT_THRESHHOLD 4
 
 SmallLanguageModelTrainer::SmallLanguageModelTrainer() : gen(std::random_device{}()) {
     total = 0;
@@ -35,7 +35,7 @@ void SmallLanguageModelTrainer::iterateThroughTokens(std::string text_file, slmP
             } else {
                 if (!ran_last) {
                     (this->*process)(last, ind);
-                    ind = (ind + 1) & 3; ++read;
+                    ind++; if (ind > ATTENTION) ind = 0; ++read;
                     // if ((read & 4095) == 0) std::cout << "Read " << read << " tokens" << std::endl;
                     last[ind] = "";
                     ran_last = true;
@@ -43,7 +43,7 @@ void SmallLanguageModelTrainer::iterateThroughTokens(std::string text_file, slmP
                 if (!std::isspace(ch)) { 
                     last[ind] = std::string(1, ch);
                     (this->*process)(last, ind);
-                    ind = (ind + 1) & 3; ++read;
+                    ind++; if (ind > ATTENTION) ind = 0; ++read;
                     // if ((read & 4095) == 0) std::cout << "Read " << read << " tokens" << std::endl;
                     last[ind] = "";
                     ran_last = true;
@@ -63,7 +63,7 @@ void SmallLanguageModelTrainer::updateCts(std::string last[], int ind) {
     int a = ATTENTION;
     while (a) {
         --a;
-        --prev; if (prev < 0) ind = ATTENTION;
+        --prev; if (prev < 0) prev = ATTENTION;
         polygrams[a][last[prev]][last[ind]]++;
     }
     this->total++;
@@ -211,7 +211,7 @@ void SmallLanguageModelTrainer::writeData() {
                     uint32_t total = 0;
                     for (auto& otherword : options) {
                         for (auto& thisword : chopped_monograms_to_real[chopped]) {
-                            total += polygrams[a][thisword][otherword];
+                            total += polygrams[ATTENTION - 1 - a][thisword][otherword];
                         }
                     }
                     if (total > OUTPUT_THRESHHOLD) {
