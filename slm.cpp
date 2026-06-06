@@ -13,6 +13,13 @@
 
 #define OUTPUT_THRESHHOLD 4
 
+enum charType {
+    LETTER,
+    DIGIT,
+    WHITESPACE,
+    PUNCTUATION
+};
+
 SmallLanguageModelTrainer::SmallLanguageModelTrainer() : gen(std::random_device{}()) {
     total = 0;
 }
@@ -24,33 +31,39 @@ void SmallLanguageModelTrainer::iterateThroughTokens(std::string text_file, slmP
         char ch;
         std::string last[ATTENTION + 1] = { "" };
         int ind = ATTENTION;
-        bool ran_last = false;
+        charType lastChar = WHITESPACE;
+        charType thisChar;
         uint64_t read = 0;
         while (file.get(ch)) {
-            if (ch == '\0') continue;
+            if (ch == '\0') continue; // Can't handle nulls in the wole
+
+            // Determine if letter, digit, whitespace, or other
             if (ch >= 'A' && ch <= 'Z') ch |= 32;
             if ((ch >= 'a' && ch <= 'z') || ch == '\'') {
-                last[ind] += ch;
-                ran_last = false;
+                thisChar = LETTER;
+            } else if (ch >= '0' && ch <= '9') {
+                thisChar = DIGIT;
+            } else if (std::isspace(ch)) {
+                thisChar = WHITESPACE;
             } else {
-                if (!ran_last) {
-                    (this->*process)(last, ind);
-                    ind++; if (ind > ATTENTION) ind = 0; ++read;
-                    // if ((read & 4095) == 0) std::cout << "Read " << read << " tokens" << std::endl;
-                    last[ind] = "";
-                    ran_last = true;
-                }
-                if (!std::isspace(ch)) { 
-                    last[ind] = std::string(1, ch);
-                    (this->*process)(last, ind);
-                    ind++; if (ind > ATTENTION) ind = 0; ++read;
-                    // if ((read & 4095) == 0) std::cout << "Read " << read << " tokens" << std::endl;
-                    last[ind] = "";
-                    ran_last = true;
-                }
+                thisChar = PUNCTUATION;
             }
+
+            // If switching from type, or previous was a punctuation, word is new
+            // if previous wasn't whitespace, process it
+            if ((thisChar != lastChar || lastChar == PUNCTUATION) && lastChar != WHITESPACE) {
+                (this->*process)(last, ind);
+                ind++; if (ind > ATTENTION) ind = 0; ++read;
+                last[ind] = "";
+            }
+            if (thisChar != WHITESPACE) {
+                last[ind] += std::string(1, ch);
+            }
+
+            // update lastChar
+            lastChar = thisChar;
         }
-        if (!ran_last) (this->*process)(last, ind);
+        if (lastChar != WHITESPACE) (this->*process)(last, ind);
         file.close();
     } else {
         std::cout << "Failed to open file: " << text_file << std::endl;
