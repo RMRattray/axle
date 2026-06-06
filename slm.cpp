@@ -52,6 +52,7 @@ void SmallLanguageModelTrainer::iterateThroughTokens(std::string text_file, slmP
             // If switching from type, or previous was a punctuation, word is new
             // if previous wasn't whitespace, process it
             if ((thisChar != lastChar || lastChar == PUNCTUATION) && lastChar != WHITESPACE) {
+                last[ind] = chopWord(last[ind]);
                 (this->*process)(last, ind);
                 ind++; if (ind > ATTENTION) ind = 0; ++read;
                 last[ind] = "";
@@ -63,6 +64,7 @@ void SmallLanguageModelTrainer::iterateThroughTokens(std::string text_file, slmP
             // update lastChar
             lastChar = thisChar;
         }
+        last[ind] = chopWord(last[ind]);
         if (lastChar != WHITESPACE) (this->*process)(last, ind);
         file.close();
     } else {
@@ -192,26 +194,26 @@ void SmallLanguageModelTrainer::writeData() {
     }
     std::filesystem::path dir = DATA_DIRECTORY;
 
-    // Gather all distinct words up to a length of MAX_WORD_LENGTH
-    // And keep them alphabetized so that output polygram files are alphabetized for easy seeking
-    std::map<std::string, uint32_t> chopped_monograms;
-    std::unordered_map<std::string, std::unordered_set<std::string>> chopped_monograms_to_real;
-    char chopped[MAX_WORD_LENGTH] = { '\0' };
-    for (auto& [word, count] : monograms) {
-        std::string chopped = chopWord(word);
-        chopped_monograms[chopped] += count;
-        chopped_monograms_to_real[chopped].insert(word);
-    }
-
     // If they appear more than once, output them to the monograms file
-    for (auto& [chopped, count] : chopped_monograms) {
-        if (count > OUTPUT_THRESHHOLD) {
-            word_count_file.write(chopped.c_str(), MAX_WORD_LENGTH);
+    for (auto& [word, count] : monograms) {
+        if (count > OUTPUT_THRESHHOLD * OUTPUT_THRESHHOLD) {
+            word_count_file.write(word.c_str(), MAX_WORD_LENGTH);
             word_count_file.write(reinterpret_cast<const char*>(&count), sizeof(uint32_t));
 
             // And produce their polygrams files, named of the form "golf2", etc
-            std::string fname = std::string(chopped.c_str(), strnlen(chopped.c_str(), MAX_WORD_LENGTH)) + "X";
+            std::string fname = std::string(word.c_str(), strnlen(word.c_str(), MAX_WORD_LENGTH)) + "X";
             for (int a = 0; a < ATTENTION; ++a) {
+
+                // Convert this one's polygram entry into an *ordered* map, filtering on output threshhold
+                auto& m = polygrams[ATTENTION - 1 - a][word];
+                std::map<std::string, uint32_t> filtered;
+                for (auto& [otherword, uscore] : monograms) {
+                    if (m.find(otherword) != m.end() && m.at(otherword) > OUTPUT_THRESHHOLD) {
+                        filtered[otherword] = m.at(otherword);
+                    }
+                }
+                if (filtered.size() == 0) continue;
+
                 fname[fname.size() - 1] = '2' + a;
                 std::filesystem::path f = fname;
                 std::ofstream polygram_file(dir / f, std::ios::binary);
@@ -220,17 +222,9 @@ void SmallLanguageModelTrainer::writeData() {
                     return;
                 }
 
-                for (auto& [otherchopped, options] : chopped_monograms_to_real) {
-                    uint32_t total = 0;
-                    for (auto& otherword : options) {
-                        for (auto& thisword : chopped_monograms_to_real[chopped]) {
-                            total += polygrams[ATTENTION - 1 - a][thisword][otherword];
-                        }
-                    }
-                    if (total > OUTPUT_THRESHHOLD) {
-                        polygram_file.write(otherchopped.c_str(), MAX_WORD_LENGTH);
-                        polygram_file.write(reinterpret_cast<const char*>(&total), sizeof(uint32_t));
-                    }
+                for (auto& [otherword, total] : filtered) {
+                    polygram_file.write(otherword.c_str(), MAX_WORD_LENGTH);
+                    polygram_file.write(reinterpret_cast<const char*>(&total), sizeof(uint32_t));
                 }
 
                 polygram_file.close();
