@@ -6,3 +6,5 @@ axle
 info.bin
 info.bin_old
 *.txt
+build/*
+!CMakeLists.txt
