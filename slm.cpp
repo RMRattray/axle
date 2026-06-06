@@ -11,7 +11,7 @@
 #include <stdexcept>
 #include <unordered_set>
 
-#define OUTPUT_THRESHHOLD 4
+#define WORDS_TO_SPACE(x) ((x * ATTENTION + 128) / 256)
 
 enum charType {
     LETTER,
@@ -185,7 +185,34 @@ std::string chopWord(const std::string& word) {
     return std::string(chopped, MAX_WORD_LENGTH);
 }
 
+void SmallLanguageModelTrainer::getOutputThreshhold() {
+    std::map<uint32_t, uint32_t> ctCts;
+    for (auto& [word, count] : monograms) ctCts[count]++;
+    uint32_t total = monograms.size();
+    for (auto& [count, countCount] : ctCts) {
+        total -= countCount;
+        countCount = total;
+    }
+
+    uint64_t t = 0;
+    std::cout << t << ":" << std::string(64, 'X') << " " << monograms.size() << " (~" << WORDS_TO_SPACE(monograms.size()) << " MB)" << std::endl;
+    ++t;
+    auto c = ctCts.begin();
+    while (c != ctCts.end()) {
+        uint64_t tt = t * t;
+        while (c != ctCts.end() && c->first < tt) c = next(c);
+        if (c != ctCts.end()) {
+            std::cout << t << ":" << std::string(c->second * 64 / monograms.size(), 'X') << " " << c->second << " (~" << WORDS_TO_SPACE(c->second) << " MB)" << std::endl;
+        }
+        ++t;
+    }
+    std::cout << "\nSelect output threshhold" << std::endl;
+    std::cin >> outputThreshhold;
+}
+
 void SmallLanguageModelTrainer::writeData() {
+    getOutputThreshhold();
+    
     // Open a file to write monograms
     std::ofstream word_count_file(WORD_COUNT_FILE, std::ios::binary);
     if (!word_count_file.is_open()) {
@@ -196,7 +223,7 @@ void SmallLanguageModelTrainer::writeData() {
 
     // If they appear more than once, output them to the monograms file
     for (auto& [word, count] : monograms) {
-        if (count > OUTPUT_THRESHHOLD * OUTPUT_THRESHHOLD) {
+        if (count > outputThreshhold * outputThreshhold) {
             word_count_file.write(word.c_str(), MAX_WORD_LENGTH);
             word_count_file.write(reinterpret_cast<const char*>(&count), sizeof(uint32_t));
 
@@ -208,7 +235,7 @@ void SmallLanguageModelTrainer::writeData() {
                 auto& m = polygrams[ATTENTION - 1 - a][word];
                 std::map<std::string, uint32_t> filtered;
                 for (auto& [otherword, uscore] : monograms) {
-                    if (m.find(otherword) != m.end() && m.at(otherword) > OUTPUT_THRESHHOLD) {
+                    if (m.find(otherword) != m.end() && m.at(otherword) > outputThreshhold) {
                         filtered[otherword] = m.at(otherword);
                     }
                 }

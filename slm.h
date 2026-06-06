@@ -24,6 +24,7 @@ class SmallLanguageModelTrainer {
     void train(std::string text_file);
     void writeData();
     std::shared_ptr<std::vector<std::string>> speak(const std::vector<std::string>& input);
+    void getOutputThreshhold();
 
     private:
     void iterateThroughTokens(std::string text_file, slmProcessor process);
@@ -35,6 +36,7 @@ class SmallLanguageModelTrainer {
 
     uint64_t total = 0;
     uint64_t weights[ATTENTION + 1] = { 1, 1, 1, 1, 1 };
+    uint32_t outputThreshhold = 1;
 
     std::mt19937 gen; // mersenne_twister_engine seeded with rd()
 };
