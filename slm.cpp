@@ -361,15 +361,17 @@ std::vector<std::pair<uint64_t, std::vector<int>>> SmallLanguageModelEvaluator::
 void SmallLanguageModelEvaluator::compress(std::vector<std::string>& words) const {
     sort(words);
     auto h = words.begin();
-    while (h != words.end() && monograms.find(*h) != monograms.end() && (h - words.begin() < 12)) ++h;
+    while (h != words.end() && monograms.find(chopWord(*h)) != monograms.end() && (h - words.begin() < 12)) ++h;
     words.erase(h, words.end());
 }
 
 void SmallLanguageModelEvaluator::sort(std::vector<std::string>& words) const {
-    std::sort(words.begin(), words.end(), [this](auto& a, auto& b) { 
-        uint64_t aa = (monograms.find(a) == monograms.end()) ? 0 : monograms.at(a);
-        uint64_t bb = (monograms.find(b) == monograms.end()) ? 0 : monograms.at(b);
-        return aa > bb;
+    std::sort(words.begin(), words.end(), [this](auto& aa, auto& bb) { 
+        std::string a = chopWord(aa);
+        std::string b = chopWord(bb);
+        uint64_t aaa = (monograms.find(a) == monograms.end()) ? 0 : monograms.at(a);
+        uint64_t bbb = (monograms.find(b) == monograms.end()) ? 0 : monograms.at(b);
+        return aaa > bbb;
     });
 }
 
