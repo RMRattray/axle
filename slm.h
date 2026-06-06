@@ -9,6 +9,7 @@
 #define WORD_COUNT_FILE "word_counts.dat"
 #define DATA_DIRECTORY "w"
 #define MAX_WORD_LENGTH 12
+#define FILE_CHUNK_LENGTH (MAX_WORD_LENGTH + sizeof(uint32_t))
 
 std::string chopWord(const std::string& word);
 
@@ -39,6 +40,7 @@ class SmallLanguageModelTrainer {
 };
 
 class SmallLanguageModelEvaluator {
+    public:
     std::vector<std::pair<uint64_t, std::vector<int>>> evaluateAllOptions(const std::vector<std::vector<std::string>>& words, int ans_ct) const;
     void compress(std::vector<std::string>& words) const;
     void sort(std::vector<std::string>& words) const;

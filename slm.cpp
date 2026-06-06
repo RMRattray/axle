@@ -251,14 +251,110 @@ void SmallLanguageModelEvaluator::readData() {
     }
 
     word_count_file.close();
-
-    for (auto& [key, value] : monograms) {
-        std::cout << key << ": " << value << std::endl;
-    }
 }
 
 std::vector<std::pair<uint64_t, std::vector<int>>> SmallLanguageModelEvaluator::evaluateAllOptions(const std::vector<std::vector<std::string>>& words, int ans_ct) const {
     std::vector<std::pair<uint64_t, std::vector<int>>> r(ans_ct, make_pair(0, std::vector(words.size(), 0)));
+    std::filesystem::path dir = DATA_DIRECTORY;
+
+    // Look up all n-gram frequencies from files:
+    // For each possible first word
+    std::vector<std::vector<std::vector<std::vector<uint32_t>>>> lookups(words.size());
+    for (int sentenceIdx = 0; sentenceIdx < words.size(); ++sentenceIdx) {
+        for (auto& rawWord : words[sentenceIdx]) {
+            std::string word = chopWord(rawWord);
+            std::vector<std::vector<uint32_t>> wordResults;
+
+            // For each possible distance from it, check for polygrams
+            std::string fname = std::string(word.c_str(), strnlen(word.c_str(), MAX_WORD_LENGTH)) + "X";
+            for (int temporalIdx = 1; sentenceIdx + temporalIdx < words.size() && temporalIdx <= ATTENTION; ++temporalIdx) {
+                std::vector<uint32_t> wordTempResults(words[sentenceIdx + temporalIdx].size(), 1);
+
+                // Assuming such a file exists, else everything is 1
+                fname[fname.size() - 1] = ('1' + temporalIdx);
+                std::filesystem::path f = fname;
+                std::ifstream polygram_file(dir / f, std::ios::binary);
+                if (polygram_file.is_open()) {
+                    polygram_file.seekg(0, polygram_file.end);
+                    uint32_t otherWordCount = polygram_file.tellg() / FILE_CHUNK_LENGTH;
+
+                    // Binary search for all other words
+                    int wtrIdx = 0;
+                    for (auto& otherRawword : words[sentenceIdx + temporalIdx]) {
+                        std::string otherword = chopWord(otherRawword);
+                        int l = 0;
+                        int r = otherWordCount - 1;
+                        char read[MAX_WORD_LENGTH];
+
+                        while (r >= l) {
+                            uint32_t m = (l + r) / 2;
+                            polygram_file.seekg(m * FILE_CHUNK_LENGTH);
+                            polygram_file.read(read, MAX_WORD_LENGTH);
+                            int v = strncmp(read, otherword.c_str(), MAX_WORD_LENGTH);
+                            if (v == 0) {
+                                uint32_t c;
+                                polygram_file.read(reinterpret_cast<char*>(&c), sizeof(uint32_t));
+                                wordTempResults[wtrIdx] = c;
+                                break;
+                            } else if (v > 0) r = m - 1;
+                            else l = m + 1;
+                        }
+
+                        ++wtrIdx;
+                    }
+
+                    polygram_file.close();
+                }
+
+                wordResults.push_back(wordTempResults);
+            }
+
+            lookups[sentenceIdx].push_back(wordResults);
+        }
+    }
+
+    // Using known n-gram frequencies, evaluate all possibilities
+    std::vector<int> indices(words.size(), 0);
+    while (true) {
+        int idxIdx;
+
+        // Calculate score
+        uint64_t score = 0;
+        for (int sentenceIdx = 0; sentenceIdx < words.size(); ++sentenceIdx) {
+            for (int temporalIdx = 1; sentenceIdx + temporalIdx < words.size() && temporalIdx <= ATTENTION; ++temporalIdx) {
+                score += lookups[sentenceIdx][indices[sentenceIdx]][temporalIdx - 1][indices[sentenceIdx + temporalIdx]];
+            }
+        }
+
+        // If score is notable, insert score into selections
+        if (score > r.back().first) {
+            auto t = r.begin();
+            if (r.size() > 1) {
+                t = prev(r.end());
+                auto h = prev(t);
+                while (t != r.begin() && h->first < score) {
+                    *t = *h;
+                    --h; --t;
+                }
+            }
+            t->first = score;
+            t->second = std::vector<int>(words.size(), 0);
+            for (idxIdx = 0; idxIdx < words.size(); ++idxIdx) {
+                t->second[idxIdx] = indices[idxIdx];
+            }
+        }
+
+        // Update to next set of possibilities
+        idxIdx = indices.size();
+        while (idxIdx) {
+            --idxIdx;
+            indices[idxIdx]++;
+            if (indices[idxIdx] == words[idxIdx].size()) indices[idxIdx] = 0;
+            else break;
+        }
+        if (idxIdx == 0 && indices[idxIdx] == 0) break;
+    }
+
     return r;
 }
 

@@ -26,12 +26,20 @@ int main() {
     s.writeData();
     std::cout << "Finished writing out fixed model" << std::endl;
 
-    // SmallLanguageModel t;
-    // t.readData("info.bin");
-    // std::cout << "Finished reading in fixed model" << std::endl;
+    SmallLanguageModelEvaluator t;
+    t.readData();
+    std::cout << "Finished reading in fixed model" << std::endl;
 
-    // std::cout << t.evaluate( { "blessed", "am", "I" } ) << " " << t.evaluate( { "blessed", "are", "those" } ) << std::endl;
-    // auto x = t.speak({ "blessed", "are", "those" });
-    // for (auto& w : *x) std::cout << w << " ";
-    // std::cout << std::endl;
+    auto x = t.evaluateAllOptions( { 
+        { "fatter", "matter", "father" },
+        { "who", "why" }, 
+        { "is", "as", "us" },
+        { "in", "on" }
+    }, 2);
+    for (auto& [score, indices] : x) {
+        for (auto& i : indices) {
+            std::cout << i << " ";
+        }
+        std::cout << ": " << score << std::endl;
+    }
 }
