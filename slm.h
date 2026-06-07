@@ -1,9 +1,10 @@
+#include <cstdint>
+#include <filesystem>
 #include <memory>
+#include <random>
 #include <string>
 #include <unordered_map>
 #include <vector>
-#include <cstdint>
-#include <random>
 
 #define ATTENTION 4
 #define WORD_COUNT_FILE "word_counts.dat"
@@ -12,6 +13,7 @@
 #define FILE_CHUNK_LENGTH (MAX_WORD_LENGTH + sizeof(uint32_t))
 
 std::string chopWord(const std::string& word);
+std::filesystem::path fileName(const std::string& choppedWord, int t);
 
 class SmallLanguageModelTrainer {
     public:

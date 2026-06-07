@@ -185,6 +185,18 @@ std::string chopWord(const std::string& word) {
     return std::string(chopped, MAX_WORD_LENGTH);
 }
 
+std::filesystem::path getFileName(const std::string& choppedWord, int t) {
+    std::filesystem::path dir = DATA_DIRECTORY;
+    std::string n = "0"; n[0] += t;
+    if (strnlen(choppedWord.c_str(), MAX_WORD_LENGTH) <= 3 || !(choppedWord[0] >= 'a' && choppedWord[0] <= 'z')) {
+        if (choppedWord[0] == '/' || choppedWord[0] == '\\') return dir / std::filesystem::path(std::string(MAX_WORD_LENGTH + 1, 'x'));
+        return dir / std::filesystem::path(std::string(choppedWord.c_str(), strnlen(choppedWord.c_str(), MAX_WORD_LENGTH)) + n);
+    } else {
+        std::filesystem::path subdir = std::string(1, choppedWord[0]);
+        return dir / subdir / std::filesystem::path(std::string(choppedWord.c_str() + 1, strnlen(choppedWord.c_str() + 1, MAX_WORD_LENGTH - 1)) + n);
+    }
+}
+
 void SmallLanguageModelTrainer::getOutputThreshhold() {
     std::map<uint32_t, uint32_t> ctCts;
     for (auto& [word, count] : monograms) ctCts[count]++;
@@ -196,7 +208,7 @@ void SmallLanguageModelTrainer::getOutputThreshhold() {
 
     uint64_t t = 0;
     std::cout << t << ":" << std::string(64, 'X') << " " << monograms.size() << " (~" << WORDS_TO_SPACE(monograms.size()) << " MB)" << std::endl;
-    ++t;
+    t = 4;
     auto c = ctCts.begin();
     while (c != ctCts.end()) {
         uint64_t tt = t * t;
@@ -204,7 +216,7 @@ void SmallLanguageModelTrainer::getOutputThreshhold() {
         if (c != ctCts.end()) {
             std::cout << t << ":" << std::string(c->second * 64 / monograms.size(), 'X') << " " << c->second << " (~" << WORDS_TO_SPACE(c->second) << " MB)" << std::endl;
         }
-        ++t;
+        t += 4;
     }
     std::cout << "\nSelect output threshhold" << std::endl;
     std::cin >> outputThreshhold;
@@ -219,7 +231,11 @@ void SmallLanguageModelTrainer::writeData() {
         throw std::runtime_error("Failed to open file");
         return;
     }
-    std::filesystem::path dir = DATA_DIRECTORY;
+
+    uint32_t totalCount = monograms.size();
+    uint32_t fraction = totalCount / 256;
+    uint32_t written = 0;
+    uint32_t sinceLastFraction = 0;
 
     // If they appear more than once, output them to the monograms file
     for (auto& [word, count] : monograms) {
@@ -228,7 +244,6 @@ void SmallLanguageModelTrainer::writeData() {
             word_count_file.write(reinterpret_cast<const char*>(&count), sizeof(uint32_t));
 
             // And produce their polygrams files, named of the form "golf2", etc
-            std::string fname = std::string(word.c_str(), strnlen(word.c_str(), MAX_WORD_LENGTH)) + "X";
             for (int a = 0; a < ATTENTION; ++a) {
 
                 // Convert this one's polygram entry into an *ordered* map, filtering on output threshhold
@@ -241,11 +256,9 @@ void SmallLanguageModelTrainer::writeData() {
                 }
                 if (filtered.size() == 0) continue;
 
-                fname[fname.size() - 1] = '2' + a;
-                std::filesystem::path f = fname;
-                std::ofstream polygram_file(dir / f, std::ios::binary);
+                std::ofstream polygram_file(getFileName(word, a + 2), std::ios::binary);
                 if (!polygram_file.is_open()) {
-                    throw std::runtime_error("Failed to open file");
+                    throw std::runtime_error("Failed to open file: " + std::string(getFileName(word, a + 2)));
                     return;
                 }
 
@@ -256,6 +269,11 @@ void SmallLanguageModelTrainer::writeData() {
 
                 polygram_file.close();
             }
+        }
+        ++written; ++sinceLastFraction;
+        if (sinceLastFraction == fraction) {
+            std::cout << "Processed " << written << "/" << totalCount << " words" << std::endl;
+            sinceLastFraction = 0;
         }
     }
 
@@ -293,14 +311,11 @@ std::vector<std::pair<uint64_t, std::vector<int>>> SmallLanguageModelEvaluator::
             std::vector<std::vector<uint32_t>> wordResults;
 
             // For each possible distance from it, check for polygrams
-            std::string fname = std::string(word.c_str(), strnlen(word.c_str(), MAX_WORD_LENGTH)) + "X";
             for (int temporalIdx = 1; sentenceIdx + temporalIdx < words.size() && temporalIdx <= ATTENTION; ++temporalIdx) {
                 std::vector<uint32_t> wordTempResults(words[sentenceIdx + temporalIdx].size(), 1);
 
                 // Assuming such a file exists, else everything is 1
-                fname[fname.size() - 1] = ('1' + temporalIdx);
-                std::filesystem::path f = fname;
-                std::ifstream polygram_file(dir / f, std::ios::binary);
+                std::ifstream polygram_file(getFileName(word, temporalIdx + 1), std::ios::binary);
                 if (polygram_file.is_open()) {
                     polygram_file.seekg(0, polygram_file.end);
                     uint32_t otherWordCount = polygram_file.tellg() / FILE_CHUNK_LENGTH;
