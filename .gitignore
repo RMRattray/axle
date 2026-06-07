@@ -8,3 +8,5 @@ info.bin_old
 *.txt
 build/*
 !CMakeLists.txt
+w/*
+word_counts.dat

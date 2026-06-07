@@ -20,8 +20,8 @@ int main()
         .headers("Content-Type", "Authorization").allow_credentials();
 
     Trie t("all_words.txt");
-    SmallLanguageModel s;
-    s.readData("info.bin");
+    SmallLanguageModelEvaluator s;
+    s.readData();
     std::cout << "Established small language model" << std::endl;
 
     //define your endpoint at the root directory
@@ -61,6 +61,7 @@ int main()
             if (!cur.empty()) words.push_back(cur);
         }
         
+        // Pass words from format string into the trie to get lists of potential words; sort and compress each
         std::vector<std::vector<std::string>> poss(words.size(), std::vector<std::string>());
         crow::json::wvalue r;
         int ii = 0;
@@ -78,48 +79,26 @@ int main()
             else poss[i].push_back(words[i]); // punctuation, etc., is fixed
         }
 
+        // If there aren't too many options, evaluate them
         int opts = 1;
         for (auto& x: poss) opts *= x.size();
         std::cout << opts << " options detected" << std::endl;
         if (opts < 10000) {
 
-            std::unordered_map<std::string, uint64_t> chances;
-            std::vector<size_t> idx(poss.size(), 0);
-            bool done = poss.empty();
-
-            while (!done) {
-                std::vector<std::string> chosen;
-                chosen.reserve(poss.size());
-                for (size_t i = 0; i < poss.size(); ++i) {
-                    chosen.push_back(poss[i][idx[i]]);
-                }
-
-                std::string joined;
-                for (size_t i = 0; i < chosen.size(); ++i) {
-                    if (i) joined.push_back(' ');
-                    joined += chosen[i];
-                }
-
-                uint64_t val = s.evaluate(chosen);
-                chances[joined] = val;
-
-                for (int i = (int)idx.size() - 1; i >= 0; --i) {
-                    idx[i]++;
-                    if (idx[i] < poss[i].size()) break;
-                    idx[i] = 0;
-                    if (i == 0) done = true;
-                }
-            }
-
-            // Extract top 5
-            std::vector<std::pair<std::string, uint64_t>> vec(chances.begin(), chances.end());
-            std::partial_sort(vec.begin(), vec.begin() + std::min<size_t>(5, vec.size()), vec.end(),
-                            [](auto& a, auto& b) { return a.second > b.second; });
+            std::vector<std::pair<uint64_t, std::vector<int>>> vec = s.evaluateAllOptions(poss, 5);
 
             size_t count = std::min<size_t>(5, vec.size());
             for (size_t i = 0; i < count; ++i) {
-                r["out"][i]["text"]  = vec[i].first;
-                r["out"][i]["score"] = vec[i].second;
+                r["out"][i]["score"] = vec[i].first;
+
+                // Assemble the text
+                std::string text = poss[0][vec[i].second[0]];
+                for (int w = 1; w < poss.size(); ++w) {
+                    std::string next = poss[w][vec[i].second[w]];
+                    if (next[0] >= 'a' && next[0] <= 'z') text += " ";
+                    text += next;
+                }
+                r["out"][i]["text"]  = text;
             }
         }
 
