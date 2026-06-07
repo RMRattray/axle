@@ -83,7 +83,7 @@ int main()
         int opts = 1;
         for (auto& x: poss) opts *= x.size();
         std::cout << opts << " options detected" << std::endl;
-        if (opts < 10000) {
+        if (opts < 10000 && opts > 0) {
 
             std::vector<std::pair<uint64_t, std::vector<int>>> vec = s.evaluateAllOptions(poss, 5);
 
