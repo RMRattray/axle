@@ -293,6 +293,7 @@ void SmallLanguageModelEvaluator::readData() {
         word_count_file.read(s, MAX_WORD_LENGTH);
         word_count_file.read(reinterpret_cast<char*>(&count), sizeof(uint32_t));
         monograms[std::string(s, MAX_WORD_LENGTH)] = count;
+        totalWordsTrained += count;
     }
 
     word_count_file.close();
@@ -301,10 +302,11 @@ void SmallLanguageModelEvaluator::readData() {
 std::vector<std::pair<uint64_t, std::vector<int>>> SmallLanguageModelEvaluator::evaluateAllOptions(const std::vector<std::vector<std::string>>& words, int ans_ct) const {
     std::vector<std::pair<uint64_t, std::vector<int>>> r(ans_ct, make_pair(0, std::vector(words.size(), 0)));
     std::filesystem::path dir = DATA_DIRECTORY;
+    const int C = words.size();
 
     // Look up all n-gram frequencies from files:
     // For each possible first word
-    std::vector<std::vector<std::vector<std::vector<uint32_t>>>> lookups(words.size());
+    std::vector<std::vector<std::vector<std::vector<uint32_t>>>> lookups(C);
     for (int sentenceIdx = 0; sentenceIdx < words.size(); ++sentenceIdx) {
         for (auto& rawWord : words[sentenceIdx]) {
             std::string word = chopWord(rawWord);
@@ -356,16 +358,27 @@ std::vector<std::pair<uint64_t, std::vector<int>>> SmallLanguageModelEvaluator::
     }
 
     // Using known n-gram frequencies, evaluate all possibilities
-    std::vector<int> indices(words.size(), 0);
+    std::vector<int> indices(C, 0); // 
+    std::vector<uint64_t> scores(C, 0);
+    int idxIdx = 0;
+    uint64_t score = 1;
     while (true) {
-        int idxIdx;
 
-        // Calculate score
-        uint64_t score = 0;
-        for (int sentenceIdx = 0; sentenceIdx < words.size(); ++sentenceIdx) {
-            for (int temporalIdx = 1; sentenceIdx + temporalIdx < words.size() && temporalIdx <= ATTENTION; ++temporalIdx) {
-                score += lookups[sentenceIdx][indices[sentenceIdx]][temporalIdx - 1][indices[sentenceIdx + temporalIdx]];
+        // Calculate scores of any changed words, and multiply to obtain score
+        while (idxIdx < C) {
+            std::string relevantWord = chopWord(words[idxIdx][indices[idxIdx]]);
+            uint64_t tentativeScore = (monograms.find(relevantWord) == monograms.end()) ? 1 : monograms.at(relevantWord);
+            int offset = 1;
+            while (offset <= ATTENTION && offset <= idxIdx) {
+                relevantWord = chopWord(words[idxIdx - offset][indices[idxIdx - offset]]);
+                if (monograms.find(relevantWord) == monograms.end()) tentativeScore++;
+                else tentativeScore += lookups[idxIdx - offset][indices[idxIdx - offset]][offset - 1][indices[idxIdx]] * totalWordsTrained / monograms.at(relevantWord);
+                ++offset;
             }
+            tentativeScore /= (idxIdx > ATTENTION ? ATTENTION : idxIdx) + 1;
+            scores[idxIdx] = tentativeScore;
+            score *= tentativeScore;
+            ++idxIdx;
         }
 
         // If score is notable, insert score into selections
@@ -386,10 +399,10 @@ std::vector<std::pair<uint64_t, std::vector<int>>> SmallLanguageModelEvaluator::
             }
         }
 
-        // Update to next set of possibilities
-        idxIdx = indices.size();
+        // Update to next set of possibilities, dividing for words that change
         while (idxIdx) {
             --idxIdx;
+            score /= scores[idxIdx];
             indices[idxIdx]++;
             if (indices[idxIdx] == words[idxIdx].size()) indices[idxIdx] = 0;
             else break;

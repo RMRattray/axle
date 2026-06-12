@@ -52,4 +52,5 @@ class SmallLanguageModelEvaluator {
 
     private:
     std::unordered_map<std::string, uint32_t> monograms;
+    uint64_t totalWordsTrained;
 };
