@@ -4,7 +4,7 @@
 mkdir "training_data"
 cd "training_data"
 i=1
-while [ $i -le 2000 ]; do 
+while [ $i -le 5000 ]; do 
     wget "https://gutenberg.org/cache/epub/$i/pg$i.txt"
     i=$((i+1))
 done
@@ -32,3 +32,14 @@ find "." -type f -print0 | while IFS= read -r -d '' file; do
 done
 
 cd ..
+
+if [ -f "bin/activate" ]; then
+    source bin/activate
+else
+    python -m venv .
+    source bin/activate
+    pip install wikipedia-api
+    pip install python-dotenv
+fi
+
+python3 gather_data.py
