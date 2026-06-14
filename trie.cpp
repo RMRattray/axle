@@ -77,7 +77,7 @@ void Trie::scan(std::vector<std::string>& ans, std::string at, std::string calle
         assert(IS_LCASE(c));
         m &= ~(1 << (c - 'a' + 1));
     }
-    root.scan(ans, &at[0], m, 256);
+    root.scan(ans, &at[0], m, 1024);
     for (std::string &s : ans) {
         for (char &c : s) {
             if (c == 'z' + 1) c = '\'';
