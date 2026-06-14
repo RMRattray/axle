@@ -8,3 +8,9 @@ add_executable(training_wheels
     slm.cpp 
     train.cpp
 )
+
+add_executable(testing
+    test.cpp
+    slm.cpp 
+    trie.cpp
+)
