@@ -1,7 +1,8 @@
 #include "slm.h"
 
-#include <iostream>
 #include <filesystem>
+#include <iostream>
+#include <limits>
 
 int main() {
     SmallLanguageModelTrainer s;
@@ -40,6 +41,7 @@ int main() {
         for (auto& i : indices) {
             std::cout << i << " ";
         }
-        std::cout << ": " << score << std::endl;
+        uint64_t sScore = score / std::numeric_limits<unsigned __int128>::max();
+        std::cout << ": " << sScore << std::endl;
     }
 }

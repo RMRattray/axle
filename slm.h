@@ -45,7 +45,7 @@ class SmallLanguageModelTrainer {
 
 class SmallLanguageModelEvaluator {
     public:
-    std::vector<std::pair<uint64_t, std::vector<int>>> evaluateAllOptions(const std::vector<std::vector<std::string>>& words, int ans_ct) const;
+    std::vector<std::pair<unsigned __int128, std::vector<int>>> evaluateAllOptions(const std::vector<std::vector<std::string>>& words, int ans_ct) const;
     void compress(std::vector<std::string>& words) const;
     void sort(std::vector<std::string>& words) const;
     void readData();

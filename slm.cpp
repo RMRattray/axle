@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <limits>
 #include <map>
 #include <random>
 #include <stdexcept>
@@ -299,8 +300,8 @@ void SmallLanguageModelEvaluator::readData() {
     word_count_file.close();
 }
 
-std::vector<std::pair<uint64_t, std::vector<int>>> SmallLanguageModelEvaluator::evaluateAllOptions(const std::vector<std::vector<std::string>>& words, int ans_ct) const {
-    std::vector<std::pair<uint64_t, std::vector<int>>> r(ans_ct, make_pair(0, std::vector(words.size(), 0)));
+std::vector<std::pair<unsigned __int128, std::vector<int>>> SmallLanguageModelEvaluator::evaluateAllOptions(const std::vector<std::vector<std::string>>& words, int ans_ct) const {
+    std::vector<std::pair<unsigned __int128, std::vector<int>>> r(ans_ct, make_pair(0, std::vector(words.size(), 0)));
     std::filesystem::path dir = DATA_DIRECTORY;
     const int C = words.size();
 
@@ -359,15 +360,17 @@ std::vector<std::pair<uint64_t, std::vector<int>>> SmallLanguageModelEvaluator::
 
     // Using known n-gram frequencies, evaluate all possibilities
     std::vector<int> indices(C, 0); // 
-    std::vector<uint64_t> scores(C, 0);
+    std::vector<unsigned __int128> scores(C, 0);
     int idxIdx = 0;
-    uint64_t score = 1;
+    unsigned __int128 score = 1;
+    bool overflown = false;
+    int found = 0;
     while (true) {
 
         // Calculate scores of any changed words, and multiply to obtain score
         while (idxIdx < C) {
             std::string relevantWord = chopWord(words[idxIdx][indices[idxIdx]]);
-            uint64_t tentativeScore = (monograms.find(relevantWord) == monograms.end()) ? 1 : monograms.at(relevantWord);
+            unsigned __int128 tentativeScore = (monograms.find(relevantWord) == monograms.end()) ? 1 : monograms.at(relevantWord);
             int offset = 1;
             while (offset <= ATTENTION && offset <= idxIdx) {
                 relevantWord = chopWord(words[idxIdx - offset][indices[idxIdx - offset]]);
@@ -377,6 +380,12 @@ std::vector<std::pair<uint64_t, std::vector<int>>> SmallLanguageModelEvaluator::
             }
             tentativeScore /= (idxIdx > ATTENTION ? ATTENTION : idxIdx) + 1;
             scores[idxIdx] = tentativeScore;
+            if (tentativeScore > std::numeric_limits<unsigned __int128>::max() / scores[idxIdx]) {
+                overflown = true;
+                std::cerr << "Warning: score overflow for phrase: ";
+                for (int iIdx = 0; iIdx < C; ++iIdx) std::cerr << words[iIdx][indices[iIdx]] << " ";
+                std::cerr << std::endl;
+            }
             score *= tentativeScore;
             ++idxIdx;
         }
@@ -397,6 +406,7 @@ std::vector<std::pair<uint64_t, std::vector<int>>> SmallLanguageModelEvaluator::
             for (idxIdx = 0; idxIdx < words.size(); ++idxIdx) {
                 t->second[idxIdx] = indices[idxIdx];
             }
+            ++found;
         }
 
         // Update to next set of possibilities, dividing for words that change
@@ -407,8 +417,12 @@ std::vector<std::pair<uint64_t, std::vector<int>>> SmallLanguageModelEvaluator::
             if (indices[idxIdx] == words[idxIdx].size()) indices[idxIdx] = 0;
             else break;
         }
+        if (overflown) idxIdx = 0; // force re-calculation
         if (idxIdx == 0 && indices[idxIdx] == 0) break;
     }
+
+    // If did not find as many possibilities as requested, trim
+    if (found < r.size()) r.erase(r.begin() + found, r.end());
 
     return r;
 }
