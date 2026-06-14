@@ -86,12 +86,11 @@ int main()
         std::cout << opts << " options detected" << std::endl;
         if (opts <= 248832 && opts > 0) {
 
-            std::vector<std::pair<unsigned __int128, std::vector<int>>> vec = s.evaluateAllOptions(poss, 5);
+            std::vector<std::pair<double, std::vector<int>>> vec = s.evaluateAllOptions(poss, 5);
 
             size_t count = std::min<size_t>(5, vec.size());
             for (size_t i = 0; i < count; ++i) {
-                uint64_t score = vec[i].first / std::numeric_limits<uint64_t>::max();
-                r["out"][i]["score"] = score;
+                r["out"][i]["score"] = vec[i].first;
 
                 // Assemble the text
                 std::string text = poss[0][vec[i].second[0]];

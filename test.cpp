@@ -49,10 +49,8 @@ int main()
         // get score for the whole string of words
         std::vector<std::vector<std::string>> poss(words.size());
         for (int i = 0; i < words.size(); ++i) poss[i].push_back(words[i]);
-        unsigned __int128 score = s.evaluateAllOptions(poss, 1).front().first;
-        uint64_t M = score / std::numeric_limits<uint64_t>::max();
-        uint64_t m = score % std::numeric_limits<uint64_t>::max();
-        std::cout << "\tScore: (" << M << ", " << m << ")" << "\n------------------------" << std::endl;
+        double score = s.evaluateAllOptions(poss, 1).front().first;
+        std::cout << "\tScore: " << score << "\n------------------------" << std::endl;
 
         // Search for words after reducing phrase to 'RSTLNE' and 'DMCAHO'
         poss = std::vector<std::vector<std::string>>(words.size());
@@ -76,7 +74,7 @@ int main()
         for (auto& x: poss) opts *= x.size();
         std::cout << "RSTLNECMHDAO: " << opts << " options detected:" << std::endl;
         if (opts <= 248832 && opts > 0) {
-            std::vector<std::pair<unsigned __int128, std::vector<int>>> vec = s.evaluateAllOptions(poss, 16);
+            std::vector<std::pair<double, std::vector<int>>> vec = s.evaluateAllOptions(poss, 16);
             int i = 0;
             while (i < vec.size() && vec[i].first != score) ++i;
             std::cout << "\t" << vec.size() << " possibilities; " << i << " incorrect" << std::endl;
@@ -97,7 +95,7 @@ int main()
             if (words[i][0] >= 'a' && words[i][0] <= 'z' || words[i][0] == '_') {
                 for (int j = 0; j < words[i].size(); ++j) {
                     char c = words[i][j];
-                    if (!(c == 'e' || c == 'l' || c == 'n' || c >= 'r' && c <= 't')) words[i][j] = '_';
+                    if (!(c == '\'' || c == 'e' || c == 'l' || c == 'n' || c >= 'r' && c <= 't')) words[i][j] = '_';
                 }
                 t.scan(poss[i], words[i], "rstlne");
                 s.sort(poss[i]);
@@ -113,7 +111,7 @@ int main()
         for (auto& x: poss) opts *= x.size();
         std::cout << "RSTLNE: " << opts << " options detected:" << std::endl;
         if (opts <= 248832 && opts > 0) {
-            std::vector<std::pair<unsigned __int128, std::vector<int>>> vec = s.evaluateAllOptions(poss, 16);
+            std::vector<std::pair<double, std::vector<int>>> vec = s.evaluateAllOptions(poss, 16);
             int i = 0;
             while (i < vec.size() && vec[i].first != score) ++i;
             std::cout << "\t" << vec.size() << " possibilities; " << i << " incorrect" << std::endl;
@@ -149,7 +147,7 @@ int main()
         for (auto& x: poss) opts *= x.size();
         std::cout << "Blank: " << opts << " options detected:" << std::endl;
         if (opts <= 248832 && opts > 0) {
-            std::vector<std::pair<unsigned __int128, std::vector<int>>> vec = s.evaluateAllOptions(poss, 16);
+            std::vector<std::pair<double, std::vector<int>>> vec = s.evaluateAllOptions(poss, 16);
             int i = 0;
             while (i < vec.size() && vec[i].first != score) ++i;
             std::cout << "\t" << vec.size() << " possibilities; " << i << " incorrect" << std::endl;

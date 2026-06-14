@@ -200,7 +200,11 @@ std::filesystem::path getFileName(const std::string& choppedWord, int t) {
 
 void SmallLanguageModelTrainer::getOutputThreshhold() {
     std::map<uint32_t, uint32_t> ctCts;
-    for (auto& [word, count] : monograms) ctCts[count]++;
+    uint32_t max = 0;
+    for (auto& [word, count] : monograms) {
+        ctCts[count]++;
+        if (count > max) max = count;
+    }
     uint32_t total = monograms.size();
     for (auto& [count, countCount] : ctCts) {
         total -= countCount;
@@ -210,6 +214,7 @@ void SmallLanguageModelTrainer::getOutputThreshhold() {
     uint64_t t = 0;
     std::cout << t << ":" << std::string(64, 'X') << " " << monograms.size() << " (~" << WORDS_TO_SPACE(monograms.size()) << " MB)" << std::endl;
     t = 4;
+    uint64_t tm = max; while (tm * tm > max) { tm *= 7; tm /= 8; } tm /= 1024; tm *= 16;
     auto c = ctCts.begin();
     while (c != ctCts.end()) {
         uint64_t tt = t * t;
@@ -217,7 +222,8 @@ void SmallLanguageModelTrainer::getOutputThreshhold() {
         if (c != ctCts.end()) {
             std::cout << t << ":" << std::string(c->second * 64 / monograms.size(), 'X') << " " << c->second << " (~" << WORDS_TO_SPACE(c->second) << " MB)" << std::endl;
         }
-        t += 4;
+        if (t < tm) t += 4;
+        else t += tm;
     }
     std::cout << "\nSelect output threshhold" << std::endl;
     std::cin >> outputThreshhold;
@@ -300,8 +306,8 @@ void SmallLanguageModelEvaluator::readData() {
     word_count_file.close();
 }
 
-std::vector<std::pair<unsigned __int128, std::vector<int>>> SmallLanguageModelEvaluator::evaluateAllOptions(const std::vector<std::vector<std::string>>& words, int ans_ct) const {
-    std::vector<std::pair<unsigned __int128, std::vector<int>>> r(ans_ct, make_pair(0, std::vector(words.size(), 0)));
+std::vector<std::pair<double, std::vector<int>>> SmallLanguageModelEvaluator::evaluateAllOptions(const std::vector<std::vector<std::string>>& words, int ans_ct) const {
+    std::vector<std::pair<double, std::vector<int>>> r(ans_ct, make_pair(0, std::vector(words.size(), 0)));
     std::filesystem::path dir = DATA_DIRECTORY;
     const int C = words.size();
 
@@ -360,9 +366,9 @@ std::vector<std::pair<unsigned __int128, std::vector<int>>> SmallLanguageModelEv
 
     // Using known n-gram frequencies, evaluate all possibilities
     std::vector<int> indices(C, 0); // 
-    std::vector<unsigned __int128> scores(C, 0);
+    std::vector<double> scores(C, 0);
     int idxIdx = 0;
-    unsigned __int128 score = 1;
+    double score = 1;
     bool overflown = false;
     int found = 0;
     while (true) {
@@ -370,22 +376,18 @@ std::vector<std::pair<unsigned __int128, std::vector<int>>> SmallLanguageModelEv
         // Calculate scores of any changed words, and multiply to obtain score
         while (idxIdx < C) {
             std::string relevantWord = chopWord(words[idxIdx][indices[idxIdx]]);
-            unsigned __int128 tentativeScore = (monograms.find(relevantWord) == monograms.end()) ? 1 : monograms.at(relevantWord);
+            double tentativeScore = (monograms.find(relevantWord) == monograms.end()) ? 1 : monograms.at(relevantWord);
+            tentativeScore /= totalWordsTrained;
+            double generalScore = tentativeScore;
             int offset = 1;
             while (offset <= ATTENTION && offset <= idxIdx) {
                 relevantWord = chopWord(words[idxIdx - offset][indices[idxIdx - offset]]);
-                if (monograms.find(relevantWord) == monograms.end()) tentativeScore++;
-                else tentativeScore += lookups[idxIdx - offset][indices[idxIdx - offset]][offset - 1][indices[idxIdx]] * totalWordsTrained / monograms.at(relevantWord);
+                if (monograms.find(relevantWord) == monograms.end()) tentativeScore += generalScore;
+                else tentativeScore += (double)lookups[idxIdx - offset][indices[idxIdx - offset]][offset - 1][indices[idxIdx]] / monograms.at(relevantWord);
                 ++offset;
             }
             tentativeScore /= (idxIdx > ATTENTION ? ATTENTION : idxIdx) + 1;
             scores[idxIdx] = tentativeScore;
-            if (tentativeScore > std::numeric_limits<unsigned __int128>::max() / scores[idxIdx]) {
-                overflown = true;
-                std::cerr << "Warning: score overflow for phrase: ";
-                for (int iIdx = 0; iIdx < C; ++iIdx) std::cerr << words[iIdx][indices[iIdx]] << " ";
-                std::cerr << std::endl;
-            }
             score *= tentativeScore;
             ++idxIdx;
         }
@@ -412,13 +414,13 @@ std::vector<std::pair<unsigned __int128, std::vector<int>>> SmallLanguageModelEv
         // Update to next set of possibilities, dividing for words that change
         while (idxIdx) {
             --idxIdx;
-            score /= scores[idxIdx];
             indices[idxIdx]++;
             if (indices[idxIdx] == words[idxIdx].size()) indices[idxIdx] = 0;
             else break;
         }
-        if (overflown) idxIdx = 0; // force re-calculation
         if (idxIdx == 0 && indices[idxIdx] == 0) break;
+        idxIdx = 0;
+        score = 1;
     }
 
     // If did not find as many possibilities as requested, trim
@@ -429,9 +431,8 @@ std::vector<std::pair<unsigned __int128, std::vector<int>>> SmallLanguageModelEv
 
 void SmallLanguageModelEvaluator::compress(std::vector<std::string>& words) const {
     sort(words);
-    auto h = words.begin();
-    while (h != words.end() && monograms.find(chopWord(*h)) != monograms.end() && (h - words.begin() < 12)) ++h;
-    words.erase(h, words.end());
+    if (words.size() > 12) // Do not remove words that don't appear; they still matter
+    words.erase(words.begin() + 12, words.end());
 }
 
 void SmallLanguageModelEvaluator::sort(std::vector<std::string>& words) const {
