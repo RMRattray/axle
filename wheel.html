@@ -480,7 +480,7 @@
                 });
             }
 
-            async function solveBoard(triggeredByClick) {
+            async function solveBoard() {
                 const rows = getBoardRowsText();
                 const fmt = buildFmtString(rows);
                 guessesDiv.innerHTML = "";
@@ -524,7 +524,7 @@
                     answersDiv.appendChild(errorColumn);
                 }
 
-                if (triggeredByClick && button.textContent === "GO") {
+                if (button.textContent === "GO") {
                     phase = "solved";
                     button.textContent = "START OVER";
                     setInstructionsForSolved();
@@ -598,7 +598,7 @@
                 if (phase === "setup") {
                     lockBoard();
                 } else if (button.textContent === "GO") {
-                    await solveBoard(true);
+                    await solveBoard();
                 } else {
                     resetAll();
                 }
@@ -606,10 +606,11 @@
 
             document.addEventListener("keydown", async (event) => {
                 if (event.key === "Enter") {
+                    console.log("Enter key press'd in phase: ", phase);
                     if (phase === "setup") {
                         lockBoard();
                     } else if (phase === "locked" || phase === "solved") {
-                        await solveBoard(false);
+                        await solveBoard();
                     }
                     return;
                 }
