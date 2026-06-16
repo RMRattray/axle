@@ -149,7 +149,7 @@
             }
 
             .answers {
-                flex: 1 1 0;
+                flex: 2 0 0;
                 min-width: 0;
                 min-height: 0;
                 display: flex;
@@ -162,6 +162,7 @@
                 flex: 1 0 140px;
                 min-height: 0;
                 max-height: 100%;
+                min-width: 0px;
                 overflow-y: auto;
                 background: rgba(6, 26, 47, 0.86);
                 border: 2px solid #2a5f95;
@@ -181,7 +182,7 @@
             }
 
             .guesses {
-                flex: 1 0 min(320px, 38%);
+                flex: 1 0 200px;
                 min-width: 200px;
                 min-height: 0;
                 overflow-y: auto;
@@ -594,7 +595,8 @@
                 slot.dataset.fixedPunctuation = "true";
             });
 
-            button.addEventListener("click", async () => {
+            button.addEventListener("click", async (e) => {
+                e.target.blur(); // prevents enter key from causing button presses!
                 if (phase === "setup") {
                     lockBoard();
                 } else if (button.textContent === "GO") {
@@ -606,7 +608,6 @@
 
             document.addEventListener("keydown", async (event) => {
                 if (event.key === "Enter") {
-                    console.log("Enter key press'd in phase: ", phase);
                     if (phase === "setup") {
                         lockBoard();
                     } else if (phase === "locked" || phase === "solved") {
